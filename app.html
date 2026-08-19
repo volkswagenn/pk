@@ -1448,7 +1448,7 @@ function render(){
    ปุ่มลอยของ Admin (แท็บ "เล่นด้วย") — กดค้างลากย้ายได้ · แตะเพื่อเปิดเมนูจัดการรอบ
    อยู่นอก #app จึงไม่ถูกล้างตอน re-render และไม่หลุดมือขณะลาก
    ============================================================ */
-let fabEl = null;
+let fabEl = null, modalShieldUntil = 0;
 function fabPos(){ try{ const v=JSON.parse(LS.get('pk:fab')||'null'); return (v&&v.x!=null)?v:null; }catch(e){ return null; } }
 const vpW = () => window.innerWidth  || document.documentElement.clientWidth  || 390;
 const vpH = () => window.innerHeight || document.documentElement.clientHeight || 780;
@@ -1500,6 +1500,7 @@ function bindFabDrag(){
     /* แตะเฉยๆ → เปิดเมนู
        ต้องรอให้ event ชุดนี้จบก่อนค่อย render มิฉะนั้นปุ่มจะถูกลบทิ้งกลางคัน
        แล้ว click ที่ตามมาจะไปตกใส่ปุ่มในเมนูที่เพิ่งขึ้นมาแทน (เคยทำให้เด้งไปหน้าคุมห้องเอง) */
+    modalShieldUntil = Date.now() + 400;      // กัน ghost click ตกใส่ปุ่มในเมนูที่เพิ่งขึ้น
     setTimeout(()=>{ UI.modal={k:'adminQuick'}; render(); }, 0);
   };
   fabEl.addEventListener('pointerup', end);
@@ -2513,7 +2514,6 @@ function renderModal(){
       </div>
       ${roundControls(r, true)}
       ${pend?`<button class="btn sec" data-act="nav" data-s="approvals">🔔 มีคำขอรออนุมัติ ${pend} รายการ</button>`:''}
-      <button class="btn sec" data-act="tabFromFab" data-t="control">👑 ไปหน้าคุมห้องเต็มรูปแบบ</button>
       <button class="btn ghost" data-act="closeModal">ปิด</button>
       <div class="cap" style="text-align:center">เคล็ดลับ: กดปุ่ม 👑 ค้างแล้วลาก เพื่อย้ายไปวางมุมที่ถนัด</div>`);
   }
@@ -2756,7 +2756,6 @@ const A = {
   forceLanding(){ LastRoom.clear(); Store.close(); S=blankState(); UI.screen='landing'; render(); },
   nav(d){ UI.screen=d.s; UI.form.winners=undefined; UI.modal=null; render(); },
   tab(d){ UI.tab=d.t; render(); },
-  tabFromFab(d){ UI.modal=null; UI.tab=d.t; render(); },
   closeModal(){ UI.modal=null; UI.form.amt=''; UI.form.to=null; render(); },
   closeMask(e,el){ UI.modal=null; UI.form.amt=''; UI.form.to=null; render(); },
   modal(d){ UI.modal={k:d.m,mid:d.mid}; UI.form.amt=''; UI.form.to=d.mid||null; UI.form.mmode='add'; render(); },
@@ -2969,6 +2968,11 @@ document.addEventListener('click', e=>{
   Sfx.unlock();
   const el = e.target.closest('[data-act]');
   if(!el){ return; }
+  // เพิ่งเปิดโมดัลจากปุ่มลอย → กลืน click ที่เบราว์เซอร์ยิงตามหลัง
+  // (เคยตกใส่ปุ่มในโมดัลที่ตำแหน่งทับกันพอดี ทำให้เด้งเปลี่ยนหน้าเอง)
+  if(Date.now() < modalShieldUntil && el.closest('.sheet')){
+    e.preventDefault(); e.stopPropagation(); return;
+  }
   if(el.dataset.act==='closeMask' && e.target.closest('[data-stop]')) return;
   const fn = A[el.dataset.act];
   if(fn){ e.preventDefault(); fn(el.dataset, el, e); }
