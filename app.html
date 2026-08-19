@@ -115,6 +115,18 @@ input:focus,select:focus{border-color:var(--brand)}
 .posbig{width:22px;height:22px;border-radius:99px;background:var(--bg-inset);border:1px solid var(--border);font:700 11px/20px var(--f);text-align:center;color:var(--ts);flex:none}
 .mv{width:26px;height:19px;border-radius:6px;background:var(--bg-inset);border:1px solid var(--border);font-size:9px;color:var(--ts);line-height:1}
 .mv[disabled]{opacity:.3}
+/* ยอดเงินแยกรายรอบลงเงิน */
+.breakdown{display:flex;flex-wrap:wrap;gap:6px}
+.breakdown span{display:flex;flex-direction:column;gap:2px;align-items:center;min-width:58px;
+  padding:5px 8px;border-radius:9px;background:rgba(0,0,0,.2);border:1px solid transparent}
+[data-theme="light"] .breakdown span{background:rgba(0,0,0,.05)}
+.breakdown i{font:500 9.5px/1 var(--f);font-style:normal;color:var(--tm)}
+.breakdown b{font:700 13px/1 var(--f);color:var(--tp)}
+.breakdown .now{border-color:var(--pot)}
+.breakdown .now i,.breakdown .now b{color:var(--pot)}
+.breakdown .tot{margin-left:auto;background:var(--pot);border-color:var(--pot)}
+.breakdown .tot i{color:rgba(36,23,5,.72)}
+.breakdown .tot b{color:#241705}
 .notation{font:600 10.5px/1.5 ui-monospace,Menlo,monospace;color:var(--pot);background:rgba(0,0,0,.18);border-radius:8px;padding:6px 8px;word-break:break-all}
 [data-theme="light"] .notation{background:rgba(0,0,0,.05)}
 .legend{display:flex;flex-wrap:wrap;gap:9px;background:var(--bg-surface);border:1px solid var(--border);border-radius:11px;padding:8px 10px}
@@ -284,18 +296,49 @@ function nextTurn(r, fromPos){
   return null;
 }
 /** เรียกหลังทุก action: เลื่อนตา + ปิดรอบอัตโนมัติถ้าเปิดไว้ */
+/** ปิดรอบลงเงินปัจจุบัน แล้วเปิดรอบลงเงินใหม่ (โหมดโป๊กเกอร์หลายรอบ) */
+function nextStreet(st, r, ev){
+  const total = r.seats.reduce((a,s)=>a+(s.contributed||0),0);
+  r.streets.push({
+    index: r.street,
+    total,
+    note: actionNotation(r),
+    detail: r.seats.filter(s=>s.contributed>0).map(s=>({memberId:s.memberId, amount:s.contributed}))
+  });
+  // ย้ายยอดของรอบที่ปิดไปเก็บสะสมไว้ แล้วเริ่มนับใหม่จาก 0
+  r.seats.forEach(s=>{ s.paid=(s.paid||0)+(s.contributed||0);
+    s.contributed=0; s.acted=false; s.tier=null; s.lastKind=null; });
+  r.currentBet=0; r.tiers=[]; r.log=[]; r.street++; r.complete=false;
+  // รอบลงเงินใหม่เริ่มที่ผู้เริ่มคนเดิม ถ้าหมอบไปแล้วเลื่อนไปคนถัดไปที่ยังเล่นอยู่
+  const ord = r.seats.slice().sort((a,b)=>a.pos-b.pos);
+  let start = ord.find(s=>s.memberId===r.starterId && s.state==='IN') || ord.find(s=>s.state==='IN');
+  r.turn = start ? start.memberId : null;
+  feed(st,ev,'🔄','จบรอบลงเงินที่ '+(r.street-1)+' (฿'+fmtS(total)+') — เปิดรอบลงเงินที่ '+r.street+
+    ' · กองสะสม ฿'+fmtS(r.pot)+(start?' · เริ่มที่ '+nameOf(st,start.memberId):''),'g');
+}
+
 function afterAction(st, r, ev, actedPos){
   if(roundComplete(r)){
+    const alive = notFolded(r).length;
+    // โหมดโป๊กเกอร์: ครบตาแล้วยังเหลือคนสู้กัน ≥2 คน → เปิดรอบลงเงินใหม่ต่อ
+    if(st.room.settings.multiStreet && alive > 1 && r.status==='OPEN'){
+      nextStreet(st, r, ev);
+      return;
+    }
     r.turn = null; r.complete = true;
     if(st.room.settings.autoClose && r.status==='OPEN'){
       r.status='LOCKED';
-      feed(st,ev,'🔒','ครบตาแล้ว — ปิดรับลงเงินอัตโนมัติ (กองรวม ฿'+fmtS(r.pot)+')','y');
+      feed(st,ev,'🔒',(alive<=1?'เหลือคนเดียว':'ครบตาแล้ว')+' — ปิดรับลงเงินอัตโนมัติ (กองรวม ฿'+fmtS(r.pot)+')','y');
     }
   } else {
     r.turn = nextTurn(r, actedPos);
     r.complete = false;
   }
 }
+/** ยอดที่ผู้เล่นคนนี้จ่ายไปทั้งหมดในมือนี้ (กองกลาง + ทุกรอบลงเงิน) */
+function paidTotal(s){ return (s.ante||0) + (s.paid||0) + (s.contributed||0); }
+/** ยอดรวมของรอบลงเงินที่ปิดไปแล้วทั้งหมด */
+function streetsTotal(r){ return (r.streets||[]).reduce((a,x)=>a+x.total,0); }
 /** ลงกองกลางครบทุกคนหรือยัง — ครบแล้วเริ่มเดิมพันที่ starterId */
 function anteComplete(r){
   const ins = r.seats.filter(s=>s.state==='IN');
@@ -627,12 +670,13 @@ function apply(st, ev){
       const idx = st.rounds.length+1;
       const seats = Object.values(st.members).filter(m=>m.status==='PLAYING')
         .sort((a,b)=>a.seatNo-b.seatNo)
-        .map((m,i)=>({memberId:m.id,pos:i+1,state:'IN',ante:0,contributed:0,acted:false,tier:null,lastKind:null}));
+        .map((m,i)=>({memberId:m.id,pos:i+1,state:'IN',ante:0,contributed:0,paid:0,acted:false,tier:null,lastKind:null}));
       const ante = st.room.settings.anteAmount||0;
       // ผู้เริ่ม = คนที่ได้เงินรอบก่อน ถ้าไม่มี/ไม่อยู่แล้ว → คนตำแหน่งแรก
       const startSeat = (st.lastWinnerId && seats.find(s=>s.memberId===st.lastWinnerId)) || seats[0] || null;
       const r = {id:ev.id,index:idx,status:'OPEN',phase: ante>0?'ANTE':'BETTING',
                  anteAmount:ante, pot:0,totalIn:0,currentBet:0,tiers:[],seats,
+                 street:1, streets:[],
                  starterId: startSeat?startSeat.memberId:null,
                  turn: ante>0 ? null : (startSeat?startSeat.memberId:null),
                  complete:false,log:[], openedAt:ev.at,winners:[]};
@@ -716,13 +760,14 @@ function apply(st, ev){
     case 'ROUND_VOID': {
       const r=st.curRound;
       r.seats.forEach(s=>{
-        const back = (s.contributed||0) + (s.ante||0);      // คืนทั้งกองกลางและเงินเดิมพัน
+        const back = paidTotal(s);      // คืนทั้งกองกลางและเงินเดิมพันทุกรอบ
         if(back>0){ const w=st.wallets[s.memberId];
           w.balance+=back; w.totalBet-=back; r.pot-=back;
           pushTx(st,{...ev,roundId:r.id},'UNBET','POT:'+r.id,'W:'+s.memberId,back,'ยกเลิกรอบ'); }
-        s.contributed=0; s.ante=0; s.tier=null;
+        s.contributed=0; s.ante=0; s.paid=0; s.tier=null;
         s.state='IN'; s.acted=false; s.lastKind=null; });
-      r.currentBet=0; r.tiers=[]; r.log=[]; r.status='VOIDED'; r.turn=null; r.complete=false;
+      r.currentBet=0; r.tiers=[]; r.log=[]; r.street=1; r.streets=[];
+      r.status='VOIDED'; r.turn=null; r.complete=false;
       feed(st,ev,'✖','ยกเลิกรอบที่ '+r.index+' คืนเงินทุกคนแล้ว','y');
       break;
     }
@@ -940,7 +985,7 @@ const profitOf = mid => {
   const w = S.wallets[mid]||{balance:0,issuedIn:0,returnedOut:0};
   const r = S.curRound && S.curRound.status!=='SETTLED' && S.curRound.status!=='VOIDED' ? S.curRound : null;
   const seat = r ? seatOf(r,mid) : null;
-  const inPot = seat ? (seat.contributed||0)+(seat.ante||0) : 0;   // เงินที่ยังค้างในกองถือเป็นของเจ้าตัวไว้ก่อน
+  const inPot = seat ? paidTotal(seat) : 0;   // เงินที่ยังค้างในกองถือเป็นของเจ้าตัวไว้ก่อน
   return w.balance + inPot - (w.issuedIn - w.returnedOut);
 };
 
@@ -1043,6 +1088,7 @@ function vCreate(){
       <input id="f_chips" value="${esc(f.chips||'5,10,20,30,50,100')}">
       <label class="row" style="margin-top:4px"><input type="checkbox" id="f_loans" ${f.loans!==false?'checked':''} style="width:auto"> <span class="lbl">เปิดให้ยืมเงินกันได้</span></label>
       <label class="row"><input type="checkbox" id="f_strict" ${f.strict!==false?'checked':''} style="width:auto"> <span class="lbl">บังคับเรียงตา (ต้องรอถึงตาตัวเอง)</span></label>
+      <label class="row"><input type="checkbox" id="f_multi" ${f.multiStreet!==false?'checked':''} style="width:auto"> <span class="lbl">โหมดโป๊กเกอร์: ครบตาแล้วเปิดรอบลงเงินใหม่ต่อ</span></label>
       <label class="row"><input type="checkbox" id="f_autoclose" ${f.autoClose!==false?'checked':''} style="width:auto"> <span class="lbl">ปิดรอบอัตโนมัติเมื่อทุกคนลงเท่ากัน</span></label>
       <label class="row"><input type="checkbox" id="f_auto" ${f.autoGrant!==false?'checked':''} style="width:auto"> <span class="lbl">อนุมัติเข้าเล่นแล้วเติมเงินเริ่มต้นให้อัตโนมัติ</span></label>
     </div>
@@ -1172,10 +1218,13 @@ function potCard(r){
     else if(needsAct(r,s))c.wait++;
     else if(s.contributed>0)c.bet++; else c.checked++; });
   const note = actionNotation(r);
+  const anteSum = r.seats.reduce((a,s)=>a+(s.ante||0),0);
+  const curSum  = r.seats.reduce((a,s)=>a+(s.contributed||0),0);
+  const multi = (r.streets&&r.streets.length) || (S.room.settings.multiStreet && r.phase==='BETTING');
   return `<div class="card col" style="background:var(--pot-bg);border-color:var(--pot);gap:8px">
     <div class="row">
       <div class="col" style="gap:4px">
-        <span class="lbl pot">กองกลาง · รอบที่ ${r.index}</span>
+        <span class="lbl pot">กองกลาง · รอบที่ ${r.index}${multi?' · รอบลงเงินที่ '+r.street:''}</span>
         <span class="money pot num">฿${fmtS(r.pot)}</span>
       </div>
       <div class="sp"></div>
@@ -1185,6 +1234,12 @@ function potCard(r){
         ${r.currentBet>0?`<span class="cap pot num">เดิมพันล่าสุด ฿${fmtS(r.currentBet)}</span>`:''}
       </div>
     </div>
+    ${multi?`<div class="breakdown">
+      ${anteSum?`<span><i>ลงกอง</i><b class="num">฿${fmtS(anteSum)}</b></span>`:''}
+      ${(r.streets||[]).map(x=>`<span><i>รอบ ${x.index}</i><b class="num">฿${fmtS(x.total)}</b></span>`).join('')}
+      <span class="now"><i>รอบ ${r.street}</i><b class="num">฿${fmtS(curSum)}</b></span>
+      <span class="tot"><i>รวม</i><b class="num">฿${fmtS(r.pot)}</b></span>
+    </div>`:''}
     ${note?`<div class="notation num">${esc(note)}</div>`:''}
   </div>`;
 }
@@ -1368,8 +1423,15 @@ function vAdminControl(){
   if(!r || r.status==='SETTLED' || r.status==='VOIDED')
     ctrl = `<button class="btn big" data-act="openRound">▶ เปิดรอบใหม่</button>`;
   else if(r.status==='OPEN')
-    ctrl = `<div class="row"><span class="lbl">ปิดรอบอัตโนมัติเมื่อครบตา</span><span class="sp"></span>
-        <input type="checkbox" data-act="setToggle" data-k="autoClose" ${S.room.settings.autoClose?'checked':''} style="width:auto"></div>
+    ctrl = `<div class="card col" style="gap:7px">
+        <label class="row"><span class="lbl">🃏 โหมดโป๊กเกอร์ — ครบตาแล้วเปิดรอบลงเงินใหม่</span><span class="sp"></span>
+          <input type="checkbox" data-act="setToggle" data-k="multiStreet" ${S.room.settings.multiStreet?'checked':''} style="width:auto"></label>
+        <label class="row"><span class="lbl">ปิดรอบอัตโนมัติเมื่อครบตา</span><span class="sp"></span>
+          <input type="checkbox" data-act="setToggle" data-k="autoClose" ${S.room.settings.autoClose?'checked':''} style="width:auto"></label>
+        <div class="cap">${S.room.settings.multiStreet
+          ? 'ตอนนี้: ทุกคนลงเท่ากัน → ระบบเปิดรอบลงเงินใหม่ให้เอง กองสะสมต่อเนื่อง · คุณกด "จบรอบ" เองเมื่อเปิดไพ่'
+          : 'ตอนนี้: ทุกคนลงเท่ากัน → '+(S.room.settings.autoClose?'ปิดรับลงเงินทันที':'รอคุณกดปิดเอง')}</div>
+      </div>
       <div class="g2">
         <button class="btn ${r.complete?'':'sec'}" data-act="lockRound">🔒 ปิดรับลงเงิน</button>
         <button class="btn sec" data-act="voidRound">✖ ยกเลิกรอบ</button>
@@ -1413,7 +1475,7 @@ function vAdminControl(){
     ${list.map(p=>{ const w=S.wallets[p.id]||{balance:0}; const s=r?seatOf(r,p.id):null;
       return `<div class="lrow"><span class="av2" style="border-color:${p.color}">${p.role==='ADMIN'?'👑':esc(initials(p.name))}</span>
         <div class="col" style="gap:2px"><b style="font:600 13px/1 var(--f)">${esc(p.name)}</b>
-          <span class="cap">${s? (s.state==='FOLDED'?'หมอบ':s.state==='SITTING_OUT'?'พัก':s.contributed>0?'ลงรอบนี้ ฿'+fmtS(s.contributed)+(needsAct(r,s)?' (ยังต้องตาม)':''):needsAct(r,s)?'รอลง':'ผ่าน') : '—'}</span></div>
+          <span class="cap">${s? (s.state==='FOLDED'?'หมอบ':s.state==='SITTING_OUT'?'พัก':paidTotal(s)>0?'ลงไปแล้ว ฿'+fmtS(paidTotal(s))+(needsAct(r,s)?' (ยังต้องตาม)':''):needsAct(r,s)?'รอลง':'ผ่าน') : '—'}</span></div>
         <span class="sp"></span><span class="money-s num">฿${fmtS(w.balance)}</span>
         <button class="btn sec sm" data-act="modal" data-m="manage" data-mid="${p.id}">⋯</button></div>`;
     }).join('')}
@@ -1482,7 +1544,7 @@ function vPayout(){
     <div class="card" style="background:var(--pot-bg);border-color:var(--pot);text-align:center">
       <div class="lbl pot">กองกลางทั้งหมด</div>
       <div class="money pot num" style="margin:6px 0">฿${fmt(r.pot)}</div>
-      <div class="cap">${r.seats.filter(s=>s.contributed>0).map(s=>`<span style="color:${(r.tiers[s.tier]||{}).color||'var(--tm)'}">●</span> ${esc(nameOf(S,s.memberId))} ${fmtS(s.contributed)}`).join(' · ')||'ไม่มีใครลงเงิน'}</div>
+      <div class="cap">${r.seats.filter(s=>paidTotal(s)>0).map(s=>`<span style="color:${(r.tiers[s.tier]||{}).color||'var(--tm)'}">●</span> ${esc(nameOf(S,s.memberId))} ${fmtS(paidTotal(s))}`).join(' · ')||'ไม่มีใครลงเงิน'}</div>
     </div>
     <div class="lbl">เลือกผู้ชนะ</div>
     <div class="rings">
@@ -1492,7 +1554,7 @@ function vPayout(){
         return `<div class="pr ${dis?'fold':''}" data-act="${dis?'foldedWin':'togWin'}" data-mid="${s.memberId}" style="cursor:pointer">
           <span class="av ${on?'sel':''}" style="${on?'border-color:var(--pot)':''}">${on?'✓':esc(initials(m.name))}</span>
           <span class="nm">${esc(m.name)}</span>
-          <span class="bg">${dis?(s.state==='FOLDED'?'หมอบแล้ว':'พัก'):(s.contributed?'฿'+fmtS(s.contributed):'ไม่ได้ลง')}</span></div>`;
+          <span class="bg">${dis?(s.state==='FOLDED'?'หมอบแล้ว':'พัก'):(paidTotal(s)?'฿'+fmtS(paidTotal(s)):'ไม่ได้ลง')}</span></div>`;
       }).join('')}
     </div>
     <div class="g2">
@@ -1643,6 +1705,8 @@ function vSettings(){
       <input type="checkbox" data-act="setToggle" data-k="loans" ${s.loans?'checked':''} style="width:auto"></label>
     <label class="row"><span class="lbl">บังคับเรียงตา (ต้องรอถึงตาตัวเอง)</span><span class="sp"></span>
       <input type="checkbox" data-act="setToggle" data-k="strict" ${s.strict?'checked':''} style="width:auto"></label>
+    <label class="row"><span class="lbl">โหมดโป๊กเกอร์ (ครบตาแล้วเปิดรอบลงเงินใหม่)</span><span class="sp"></span>
+      <input type="checkbox" data-act="setToggle" data-k="multiStreet" ${s.multiStreet?'checked':''} style="width:auto"></label>
     <label class="row"><span class="lbl">ปิดรอบอัตโนมัติเมื่อครบตา</span><span class="sp"></span>
       <input type="checkbox" data-act="setToggle" data-k="autoClose" ${s.autoClose?'checked':''} style="width:auto"></label>
     <div class="cap">ครบตา = ผู้เล่นที่ยังไม่หมอบทุกคนลงเงินเท่ากันหมด (หลักโป๊กเกอร์) ถ้าเปิดไว้ ระบบจะปิดรับลงเงินให้เองทันที</div>
@@ -1898,7 +1962,7 @@ function mConfirm(m){
 function mSummary(r){
   const mySeat = seatOf(r,me.id);
   const myWin = (r.winners.find(w=>w.memberId===me.id)||{}).amount||0;
-  const myBet = mySeat?mySeat.contributed:0;
+  const myBet = mySeat?paidTotal(mySeat):0;
   const net = myWin-myBet;
   return mWrap(`<b class="h1" style="text-align:center">🏁 จบรอบที่ ${r.index}</b>
     <div class="card col" style="align-items:center;background:var(--pot-bg);border-color:var(--pot)">
@@ -1910,10 +1974,20 @@ function mSummary(r){
       <span class="cap">ลงไป ฿${fmtS(myBet)} · ได้รับ ฿${fmtS(myWin)}</span>
       <span class="money num ${net>0?'in':net<0?'out':''}">${net>0?'+':''}฿${fmtS(Math.abs(net))}</span>
     </div>`:''}
-    <table><thead><tr><th>ผู้เล่น</th><th>ลง</th><th>ได้รับ</th></tr></thead><tbody>
+    ${(r.streets&&r.streets.length)?`<div class="card col" style="gap:6px">
+      <b class="lbl">เงินที่ลงแต่ละรอบ</b>
+      <div class="breakdown">
+        ${r.seats.reduce((a,s)=>a+(s.ante||0),0)?`<span><i>ลงกอง</i><b class="num">฿${fmtS(r.seats.reduce((a,s)=>a+(s.ante||0),0))}</b></span>`:''}
+        ${r.streets.map(x=>`<span><i>รอบ ${x.index}</i><b class="num">฿${fmtS(x.total)}</b></span>`).join('')}
+        ${r.seats.reduce((a,s)=>a+(s.contributed||0),0)?`<span><i>รอบ ${r.street}</i><b class="num">฿${fmtS(r.seats.reduce((a,s)=>a+(s.contributed||0),0))}</b></span>`:''}
+        <span class="tot"><i>รวม</i><b class="num">฿${fmtS(r.totalIn)}</b></span>
+      </div>
+      ${r.streets.filter(x=>x.note).map(x=>`<div class="cap"><b>รอบ ${x.index}:</b> <span class="num">${esc(x.note)}</span></div>`).join('')}
+    </div>`:''}
+    <table><thead><tr><th>ผู้เล่น</th><th>ลงทั้งหมด</th><th>ได้รับ</th></tr></thead><tbody>
       ${r.seats.map(s=>{ const wn=(r.winners.find(w=>w.memberId===s.memberId)||{}).amount||0;
         return `<tr><td>${esc(nameOf(S,s.memberId))}${s.state==='FOLDED'?' <span class="cap">(หมอบ)</span>':''}</td>
-          <td class="num">${s.contributed?fmtS(s.contributed):'—'}</td><td class="num ${wn?'in':''}">${wn?fmtS(wn):'—'}</td></tr>`; }).join('')}
+          <td class="num">${paidTotal(s)?fmtS(paidTotal(s)):'—'}</td><td class="num ${wn?'in':''}">${wn?fmtS(wn):'—'}</td></tr>`; }).join('')}
       <tr style="font-weight:700"><td>รวม</td><td class="num">${fmtS(r.totalIn)}</td><td class="num">${fmtS(r.winners.reduce((a,w)=>a+w.amount,0))} ✅</td></tr>
     </tbody></table>
     <button class="btn" data-act="closeModal">ปิด</button>
@@ -1937,7 +2011,7 @@ const A = {
   openPend(){ UI.screen='approvals'; render(); },
 
   goCreate(){ const n=$('#myname').value.trim(); if(!n) return toast('ใส่ชื่อก่อนนะ','r');
-    me.name=n; Me.save(me); UI.screen='create'; UI.form={seats:5,start:1000,ante:10,chips:'5,10,20,30,50,100',loans:true,strict:true,autoClose:true,autoGrant:true}; render(); },
+    me.name=n; Me.save(me); UI.screen='create'; UI.form={seats:5,start:1000,ante:10,multiStreet:true,chips:'5,10,20,30,50,100',loans:true,strict:true,autoClose:true,autoGrant:true}; render(); },
   goJoin(){ const n=$('#myname').value.trim(); if(!n) return toast('ใส่ชื่อก่อนนะ','r');
     me.name=n; Me.save(me); UI.screen='join'; render(); },
   seats(d){ UI.form.seats = Math.max(1,Math.min(20,(UI.form.seats||5)+Number(d.d))); render(); },
@@ -1954,7 +2028,7 @@ const A = {
     await Store.append({t:'ROOM_CREATED',code,name,name2:me.name,maxSeats:UI.form.seats||5,
       settings:{startAmount:start, anteAmount:ante, chips:chips.length?chips:[5,10,20,30,50,100],
         loans:$('#f_loans').checked, strict:$('#f_strict').checked,
-        autoClose:$('#f_autoclose').checked, autoGrant:$('#f_auto').checked}});
+        autoClose:$('#f_autoclose').checked, multiStreet:$('#f_multi').checked, autoGrant:$('#f_auto').checked}});
     if(start>0) await Store.append({t:'ISSUE',mid:me.id,amount:start,kind:'ISSUE_INITIAL',note:'เงินเริ่มต้น'});
     LastRoom.save(code, Store.mode);
     UI.screen='home'; UI.tab='control'; refresh();
