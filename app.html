@@ -370,6 +370,16 @@ function chipStack(satang, size){
 const Sfx = {
   ctx:null, on:true,
   init(){ this.on = LS.get('pk:sound') !== '0'; },
+  /** ดังได้เฉพาะตอนหน้าเว็บเปิดอยู่จริงเท่านั้น — แท็บที่ซ่อน/ย่อไว้ต้องเงียบสนิท */
+  canPlay(){
+    if(!this.on) return false;
+    try{ if(document.visibilityState !== 'visible' || document.hidden) return false; }catch(e){}
+    return true;
+  },
+  /** หยุดเสียงที่กำลังจะดังทั้งหมด + พักเครื่องเสียง */
+  silence(){
+    try{ if(this.ctx && this.ctx.state==='running') this.ctx.suspend(); }catch(e){}
+  },
   unlock(){ if(this.ctx) return;
     try{ const C = window.AudioContext||window.webkitAudioContext; if(C) this.ctx = new C(); }catch(e){}
     if(this.ctx && this.ctx.state==='suspended') this.ctx.resume().catch(()=>{});
@@ -387,17 +397,17 @@ const Sfx = {
   },
   buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} },
   /** ถึงตาคุณ — เสียงเด่น ต้องได้ยินชัดในวงที่เสียงดัง */
-  myTurn(){ if(!this.on) return; this.unlock();
+  myTurn(){ if(!this.canPlay()) return; this.unlock();
     this.tone(880,0,.16,.3); this.tone(1320,.17,.20,.3); this.tone(1760,.36,.26,.26);
     this.buzz([90,70,90,70,160]); },
   /** เตือนให้ลงกองกลาง */
-  ante(){ if(!this.on) return; this.unlock();
+  ante(){ if(!this.canPlay()) return; this.unlock();
     this.tone(660,0,.18,.24); this.tone(880,.19,.22,.22); this.buzz([70,60,120]); },
   /** ชนะ */
-  win(){ if(!this.on) return; this.unlock();
+  win(){ if(!this.canPlay()) return; this.unlock();
     [523,659,784,1047].forEach((f,i)=>this.tone(f,i*0.11,.3,.26,'triangle')); this.buzz([50,40,50,40,220]); },
   /** เสียงชิพตอนลงเงิน */
-  chip(){ if(!this.on) return; this.unlock();
+  chip(){ if(!this.canPlay()) return; this.unlock();
     this.tone(2100,0,.05,.14,'square'); this.tone(1500,.045,.07,.10,'square'); },
   toggle(){ this.on=!this.on; LS.set('pk:sound', this.on?'1':'0');
     if(this.on){ this.unlock(); this.tone(880,0,.12,.25); } return this.on; }
@@ -1120,7 +1130,25 @@ const Store = {
   }
 };
 // กลับมาที่แท็บ/ปลดล็อกมือถือ → ดึงข้อมูลล่าสุดทันที ไม่ต้องรอรอบ poll
-document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) Store.pull && Store.pull(); });
+/* ---------- จัดการเมื่อหน้าเว็บถูกซ่อน/ปิด ----------
+   แท็บที่ซ่อนหรือย่อไว้ต้องหยุดทุกอย่าง: ไม่ดึงข้อมูล ไม่ส่งเสียง ไม่สั่น */
+function goQuiet(){
+  stopNag();                       // หยุดเตือนซ้ำทุก 5 วิ
+  Sfx.silence();                   // พักเครื่องเสียง เสียงที่คิวไว้ไม่ดัง
+  if(Store.poll){ clearInterval(Store.poll); Store.poll=null; }
+}
+function goActive(){
+  if(Store.mode==='cloud' && Store.sb && Store.code && !Store.poll){
+    Store.poll = setInterval(()=>Store.pull(), 4000);
+    Store.pull();                  // ดึงทันทีให้ทันเพื่อน
+  }
+  updateTurnNag();                 // ถ้ายังถึงตาเราอยู่ ค่อยเริ่มเตือนใหม่
+}
+document.addEventListener('visibilitychange', ()=>{ document.hidden ? goQuiet() : goActive(); });
+window.addEventListener('blur',  ()=>{ stopNag(); });      // สลับไปหน้าต่างอื่น = หยุดเตือนซ้ำ
+window.addEventListener('focus', ()=>{ updateTurnNag(); });
+window.addEventListener('pagehide', ()=>{ goQuiet(); try{ Store.close(); }catch(e){} });
+window.addEventListener('beforeunload', ()=>{ goQuiet(); try{ Store.close(); }catch(e){} });
 
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('โหลดไม่สำเร็จ: '+src)); document.head.appendChild(s); }); }
 let _sbClient = null;
@@ -1236,24 +1264,28 @@ function notifyMyTurn(prev){
 
 /* ---------- เตือนซ้ำทุก 5 วิ ถ้าถึงตาเราแล้วยังไม่กดลง ---------- */
 let _nag = null;
+function stopNag(){ if(_nag){ clearInterval(_nag); _nag=null; } }
 function updateTurnNag(){
   const r = S.curRound, seat = r ? seatOf(r, me.id) : null;
   const anteDue = r && r.status==='OPEN' && seat && seat.state==='IN'
                   && r.phase==='ANTE' && seat.ante<=0;
   const betDue  = r && r.status==='OPEN' && seat && seat.state==='IN'
                   && r.phase==='BETTING' && r.turn===me.id && needsAct(r,seat);
-  if((anteDue || betDue) && !_nag){
+  // เริ่มเตือนซ้ำได้เฉพาะตอนหน้าเว็บเปิดอยู่จริง
+  const visible = (()=>{ try{ return document.visibilityState==='visible' && !document.hidden; }catch(e){ return true; } })();
+  if((anteDue || betDue) && visible && !_nag){
     _nag = setInterval(()=>{
-      // เช็คซ้ำก่อนดังทุกครั้ง — กันดังค้างหลังลงไปแล้ว
+      // เช็คซ้ำก่อนดังทุกครั้ง — กันดังค้างหลังลงไปแล้ว หรือหน้าเว็บถูกซ่อนไป
+      try{ if(document.visibilityState!=='visible' || document.hidden){ stopNag(); return; } }catch(e){}
       const rr = S.curRound, ss = rr ? seatOf(rr, me.id) : null;
       const stillAnte = rr && rr.status==='OPEN' && ss && ss.state==='IN' && rr.phase==='ANTE' && ss.ante<=0;
       const stillBet  = rr && rr.status==='OPEN' && ss && ss.state==='IN' && rr.phase==='BETTING' && rr.turn===me.id && needsAct(rr,ss);
       if(stillAnte) Sfx.ante();
       else if(stillBet) Sfx.myTurn();
-      else { clearInterval(_nag); _nag=null; }
+      else stopNag();
     }, 5000);
   }
-  if(!(anteDue || betDue) && _nag){ clearInterval(_nag); _nag=null; }
+  if((!(anteDue || betDue) || !visible) && _nag) stopNag();
 }
 
 /* ---------- ป๊อปอัพอัตโนมัติ: สรุปผู้ชนะ (ทุกเครื่อง) + เปิดไพ่กลาง ---------- */
@@ -1367,6 +1399,7 @@ function renderFab(){
 function bindFabDrag(){
   let moved=false, sx=0, sy=0, ox=0, oy=0;
   fabEl.addEventListener('pointerdown', e=>{
+    e.preventDefault();                       // กันไม่ให้เบราว์เซอร์สร้าง event ซ้อน
     moved=false; sx=e.clientX; sy=e.clientY;
     const r=fabEl.getBoundingClientRect(); ox=r.left; oy=r.top;
     fabEl.setPointerCapture(e.pointerId);
@@ -1382,11 +1415,19 @@ function bindFabDrag(){
   const end = e=>{
     if(fabEl.hasPointerCapture(e.pointerId)) fabEl.releasePointerCapture(e.pointerId);
     fabEl.classList.remove('dragging');
-    if(moved && vpW()>80) LS.set('pk:fab', JSON.stringify({x:parseFloat(fabEl.style.left), y:parseFloat(fabEl.style.top)}));
-    else { UI.modal={k:'adminQuick'}; render(); }         // แตะเฉยๆ = เปิดเมนู
+    if(moved){
+      if(vpW()>80) LS.set('pk:fab', JSON.stringify({x:parseFloat(fabEl.style.left), y:parseFloat(fabEl.style.top)}));
+      return;                                  // ลากแล้ว = ไม่ใช่การแตะ ไม่เปิดเมนู
+    }
+    /* แตะเฉยๆ → เปิดเมนู
+       ต้องรอให้ event ชุดนี้จบก่อนค่อย render มิฉะนั้นปุ่มจะถูกลบทิ้งกลางคัน
+       แล้ว click ที่ตามมาจะไปตกใส่ปุ่มในเมนูที่เพิ่งขึ้นมาแทน (เคยทำให้เด้งไปหน้าคุมห้องเอง) */
+    setTimeout(()=>{ UI.modal={k:'adminQuick'}; render(); }, 0);
   };
   fabEl.addEventListener('pointerup', end);
-  fabEl.addEventListener('pointercancel', e=>{ fabEl.classList.remove('dragging'); });
+  fabEl.addEventListener('pointercancel', ()=>{ fabEl.classList.remove('dragging'); });
+  // กัน click ที่เบราว์เซอร์ยิงตามหลัง pointerup ไม่ให้ทะลุไปโดนอย่างอื่น
+  fabEl.addEventListener('click', e=>{ e.preventDefault(); e.stopPropagation(); });
 }
 window.addEventListener('resize', ()=>{ if(fabEl) placeFab(); });
 
@@ -2373,13 +2414,24 @@ function mAmount(title, sub, hint, act){
 }
 
 function mTransfer(mode){
-  const others = playersList().filter(p=>p.id!==me.id);
+  let others = playersList().filter(p=>p.id!==me.id);
   const to = UI.form.to || (UI.modal.mid||null);
   const v = UI.form.amt||'';
   const amt = B(parseAmt(v)||0);
   const w = myWallet();
   const title = mode==='give'?'โอนเงินให้ผู้เล่น':mode==='borrow'?'ขอยืมเงินจากผู้เล่น':'คืนหนี้';
   const target = to?S.members[to]:null;
+  // แท็บสลับโหมด — โอนให้ / ขอยืม / คืนหนี้ (คืนหนี้โผล่เฉพาะตอนมีหนี้ค้าง)
+  const myDebt = debtOf(me.id);
+  const tabs = [['give','💸 โอนให้']]
+    .concat(S.room.settings.loans ? [['borrow','🤝 ขอยืม']] : [])
+    .concat(myDebt.owesTotal>0 ? [['repay','↩️ คืนหนี้']] : []);
+  const tabBar = tabs.length>1 ? `<div class="tabs">
+      ${tabs.map(([k,l])=>`<button class="${mode===k?'on':''}" data-act="xferMode" data-m="${k}">${l}</button>`).join('')}
+    </div>` : '';
+  // โหมดคืนหนี้ → เลือกได้เฉพาะคนที่เราติดหนี้อยู่ พร้อมบอกยอดค้าง
+  const owedTo = {}; myDebt.owes.forEach(o=>owedTo[o.id]=o.amount);
+  if(mode==='repay') others = others.filter(p=>owedTo[p.id]>0);
   let summary='';
   if(target){
     if(mode==='borrow') summary = `<div class="card col" style="gap:6px">
@@ -2396,10 +2448,13 @@ function mTransfer(mode){
   const bad = !to || amt<=0 || (mode!=='borrow' && amt>w.balance);
   return mWrap(`
     <b class="h1" style="text-align:center">${title}</b>
-    <div class="lbl">${mode==='borrow'?'ขอยืมจาก':'โอนให้'}</div>
+    ${tabBar}
+    <div class="lbl">${mode==='borrow'?'ขอยืมจาก':mode==='repay'?'คืนหนี้ให้':'โอนให้'}</div>
     <div class="rings">${others.map(p=>`<div class="pr" data-act="pickTo" data-mid="${p.id}" style="cursor:pointer">
       <span class="av ${to===p.id?'sel':''}" style="${to===p.id?'border-color:var(--brand4)':''}">${esc(initials(p.name))}</span>
-      <span class="nm">${esc(p.name)}</span></div>`).join('')||'<span class="cap">ยังไม่มีผู้เล่นอื่น</span>'}</div>
+      <span class="nm">${esc(p.name)}</span>
+      ${mode==='repay'?`<span class="bg out num">฿${fmtS(owedTo[p.id]||0)}</span>`:''}</div>`).join('')
+      || `<span class="cap">${mode==='repay'?'คุณไม่ได้ติดหนี้ใครอยู่':'ยังไม่มีผู้เล่นอื่น'}</span>`}</div>
     <div class="money num" style="text-align:center;margin:4px 0;color:${v?'var(--tp)':'var(--tm)'}">฿${v||'0'}</div>
     <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:center">
       ${[50,100,500].map(x=>`<button class="pill" data-act="amtAdd" data-v="${x}">+${x}</button>`).join('')}
@@ -2692,6 +2747,7 @@ const A = {
   amtAll(){ UI.form.amt = String(myWallet().balance/100); render(); },
   amtAllOf(d){ UI.form.amt = String((S.wallets[d.mid]||{balance:0}).balance/100); render(); },
   pickTo(d){ UI.form.to=d.mid; render(); },
+  xferMode(d){ UI.modal={k:d.m, mid:null}; UI.form.to=null; UI.form.amt=''; render(); },
   mmode(d){ UI.form.mmode=d.v; UI.form.amt=''; render(); },
 
   async doTopup(){ const a=B(parseAmt(UI.form.amt)||0); if(a<=0) return toast('ใส่จำนวนเงิน','r');
