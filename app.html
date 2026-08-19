@@ -1273,11 +1273,10 @@ function refresh(){
   if(firstLoad) initPopupMarks(); else maybePopups();
   if(!firstLoad && prev.feed && S.feed.length>prev.feed.length && UI.screen!=='landing'){
     const added = S.feed.slice(prev.feed.length).filter(f=>f.kind!=='silent');
-    if(added.length > 2){
-      // มาพร้อมกันหลายรายการ → รวบเป็นอันเดียว ไม่ให้ท่วมจอ
-      toast('🔔 มี '+added.length+' รายการใหม่ · ล่าสุด: '+added[added.length-1].text, '');
-    } else {
-      added.forEach(f=>toast(f.icon+'  '+f.text, f.kind==='g'?'g':f.kind==='y'?'y':''));
+    // แสดงแถบเดียวเสมอ — เอาเฉพาะรายการล่าสุด (อันใหม่แทนที่อันเก่าทันที ไม่ซ้อนกัน)
+    if(added.length){
+      const f = added[added.length-1];
+      toast(f.icon+'  '+f.text+(added.length>1?'  (+'+(added.length-1)+' รายการ)':''), f.kind==='g'?'g':f.kind==='y'?'y':'');
     }
   }
   render();
@@ -1415,7 +1414,7 @@ function maybePopups(){
   } else if(b && !seenStreet[b.id]) seenStreet[b.id] = b.street;
 }
 
-const TOAST_MAX = 3;                       // แสดงพร้อมกันได้มากสุดกี่อัน
+const TOAST_MAX = 1;                       // แถบเดียวเสมอ — อันใหม่แทนที่อันเก่า ไม่ซ้อนกัน
 function toast(text, kind){
   const box = $('#toasts'); if(!box) return;
   while(box.children.length >= TOAST_MAX) box.removeChild(box.firstChild);   // อันเก่าสุดหลุดไปก่อน
