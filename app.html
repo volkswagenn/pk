@@ -1156,7 +1156,7 @@ function refresh(){
   S = reduce(Store.events);
   notifyMyTurn(prev);
   updateTurnNag();
-  if(!firstLoad) maybePopups(prev);
+  if(firstLoad) initPopupMarks(); else maybePopups();
   if(!firstLoad && prev.feed && S.feed.length>prev.feed.length && UI.screen!=='landing'){
     const added = S.feed.slice(prev.feed.length).filter(f=>f.kind!=='silent');
     if(added.length > 2){
@@ -1259,22 +1259,42 @@ function scheduleSummaryClose(){
   }, Math.max(2, sumSecs)*1000);
 }
 
-function maybePopups(prev){
+/* จำว่าเคยโชว์อะไรไปแล้ว — ไม่พึ่งการเทียบ snapshot เพราะเครื่องผู้เล่น
+   มักได้ event มาเป็นชุด (poll ทุก 4 วิ) แล้วข้ามจังหวะ SETTLED ไปเลย */
+let seenSettled = null, seenStreet = {};
+
+/** ตั้งจุดเริ่มตอนเพิ่งเข้าห้อง — กันเด้งสรุปของรอบเก่าย้อนหลัง */
+function initPopupMarks(){
+  const done = S.rounds.filter(x=>x.status==='SETTLED');
+  seenSettled = done.length ? done[done.length-1].id : null;
+  seenStreet = {};
+  if(S.curRound) seenStreet[S.curRound.id] = S.curRound.street;
+}
+
+function maybePopups(){
   if(UI.screen==='landing' || UI.screen==='boot') return;
-  const a = prev.curRound, b = S.curRound;
-  if(!b) return;
   const busy = UI.modal && UI.modal.k!=='summary' && UI.modal.k!=='reveal';   // อย่าทับโมดัลที่ผู้ใช้เปิดค้างอยู่
 
-  // 1) จบรอบ → สรุปผู้ชนะเด้งทุกเครื่อง (ไม่ใช่แค่ Admin)
-  if(b.status==='SETTLED' && (!a || a.id!==b.id || a.status!=='SETTLED')){
-    if(!busy){ UI.modal={k:'summary',round:b}; scheduleSummaryClose(); render(); }
-    return;
+  // 1) มีรอบที่จบแล้วแต่ยังไม่เคยโชว์ → เด้งสรุปผู้ชนะทุกเครื่อง
+  //    (หาจากรายการรอบทั้งหมด ไม่ใช่ curRound — Admin อาจเปิดรอบใหม่ไปแล้ว)
+  const done = S.rounds.filter(x=>x.status==='SETTLED');
+  const last = done.length ? done[done.length-1] : null;
+  if(last && seenSettled !== last.id){
+    seenSettled = last.id;
+    if(!busy){ UI.modal={k:'summary',round:last}; scheduleSummaryClose(); render(); return; }
+    toast('🏁 จบรอบที่ '+last.index+' — '+(last.winners||[]).map(w=>nameOf(S,w.memberId)).join(' · ')+' ชนะ','g');
   }
-  // 2) จบรอบลงเงิน → เปิดไพ่กลาง (street 2=เปิด 3 ใบ, 3=ใบที่ 4, 4=ใบที่ 5)
-  if(a && a.id===b.id && b.phase==='BETTING' && b.street>a.street && b.street>=2 && b.street<=4){
-    if(!busy){ UI.modal={k:'reveal',street:b.street}; scheduleSummaryClose(); Sfx.chip(); render(); }
-    else toast('🃏 จบรอบลงเงินที่ '+(b.street-1)+' — เปิดไพ่กลางได้','y');
-  }
+
+  // 2) ขึ้นรอบลงเงินใหม่ที่ยังไม่เคยโชว์ → เปิดไพ่กลาง (2=เปิด 3 ใบ, 3=ใบที่ 4, 4=ใบที่ 5)
+  const b = S.curRound;
+  if(b && b.status==='OPEN' && b.phase==='BETTING' && b.street>=2 && b.street<=4){
+    const shown = seenStreet[b.id] || 1;
+    if(b.street > shown){
+      seenStreet[b.id] = b.street;
+      if(!busy){ UI.modal={k:'reveal',street:b.street}; scheduleSummaryClose(); Sfx.chip(); render(); }
+      else toast('🃏 จบรอบลงเงินที่ '+(b.street-1)+' — เปิดไพ่กลางได้','y');
+    }
+  } else if(b && !seenStreet[b.id]) seenStreet[b.id] = b.street;
 }
 
 const TOAST_MAX = 3;                       // แสดงพร้อมกันได้มากสุดกี่อัน
