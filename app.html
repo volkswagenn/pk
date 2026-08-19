@@ -118,6 +118,13 @@ input:focus,select:focus{border-color:var(--brand)}
 .notice:active{opacity:.7}
 @keyframes blip{0%,100%{opacity:1}50%{opacity:.25}}
 .live{display:inline-block;width:8px;height:8px;border-radius:99px;background:var(--in);animation:blip 1.8s infinite}
+/* ปุ่มลอยของ Admin — ลากไปวางตรงไหนก็ได้ */
+.fab{position:fixed;z-index:45;width:56px;height:56px;border-radius:99px;
+  background:var(--admin);color:#fff;font-size:25px;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 6px 20px rgba(0,0,0,.45),0 0 0 3px rgba(124,107,255,.25);
+  touch-action:none;user-select:none;cursor:grab}
+.fab:active{cursor:grabbing;transform:scale(.94)}
+.fab.dragging{opacity:.85;box-shadow:0 10px 28px rgba(0,0,0,.6),0 0 0 5px rgba(124,107,255,.4)}
 
 /* player rings */
 .rings{display:flex;gap:7px;overflow-x:auto;padding:2px 1px 3px}
@@ -279,6 +286,7 @@ th{font:600 11px/1 var(--f);color:var(--tm)}
 <body>
 <div id="app"></div>
 <div id="modals"></div>
+<div id="fab"></div>
 <div id="toasts"></div>
 
 <script>
@@ -1324,7 +1332,63 @@ function render(){
   else html = vRoom();
   app.innerHTML = html;
   renderModal();
+  renderFab();
 }
+
+/* ============================================================
+   ปุ่มลอยของ Admin (แท็บ "เล่นด้วย") — กดค้างลากย้ายได้ · แตะเพื่อเปิดเมนูจัดการรอบ
+   อยู่นอก #app จึงไม่ถูกล้างตอน re-render และไม่หลุดมือขณะลาก
+   ============================================================ */
+let fabEl = null;
+function fabPos(){ try{ const v=JSON.parse(LS.get('pk:fab')||'null'); return (v&&v.x!=null)?v:null; }catch(e){ return null; } }
+const vpW = () => window.innerWidth  || document.documentElement.clientWidth  || 390;
+const vpH = () => window.innerHeight || document.documentElement.clientHeight || 780;
+function placeFab(){
+  if(!fabEl) return;
+  const W = vpW(), H = vpH();
+  if(W<80 || H<80) return;                    // จอยังวัดไม่ได้ (แท็บซ่อนอยู่) — อย่าเพิ่งจัดตำแหน่ง
+  const p = fabPos();
+  const x = p ? Math.min(p.x, W-62) : W-72;
+  const y = p ? Math.min(p.y, H-62) : H-150;
+  fabEl.style.left = Math.max(6,x)+'px';
+  fabEl.style.top  = Math.max(6,y)+'px';
+}
+function renderFab(){
+  const box = document.getElementById('fab'); if(!box) return;
+  const show = S.room && S.room.status!=='CLOSED' && isAdmin()
+            && UI.tab==='play' && UI.screen==='home' && !UI.modal;
+  if(!show){ box.innerHTML=''; fabEl=null; return; }
+  if(fabEl) return;                              // มีอยู่แล้ว ไม่ต้องสร้างใหม่ (กันตำแหน่งเด้ง)
+  box.innerHTML = '<button class="fab" id="fabBtn" title="จัดการรอบ">👑</button>';
+  fabEl = document.getElementById('fabBtn');
+  placeFab();
+  bindFabDrag();
+}
+function bindFabDrag(){
+  let moved=false, sx=0, sy=0, ox=0, oy=0;
+  fabEl.addEventListener('pointerdown', e=>{
+    moved=false; sx=e.clientX; sy=e.clientY;
+    const r=fabEl.getBoundingClientRect(); ox=r.left; oy=r.top;
+    fabEl.setPointerCapture(e.pointerId);
+  });
+  fabEl.addEventListener('pointermove', e=>{
+    if(!fabEl.hasPointerCapture(e.pointerId)) return;
+    const dx=e.clientX-sx, dy=e.clientY-sy;
+    if(!moved && Math.abs(dx)<5 && Math.abs(dy)<5) return;   // ขยับนิดเดียว = ยังนับเป็นการแตะ
+    moved=true; fabEl.classList.add('dragging');
+    fabEl.style.left = Math.max(6, Math.min(vpW()-62, ox+dx))+'px';
+    fabEl.style.top  = Math.max(6, Math.min(vpH()-62, oy+dy))+'px';
+  });
+  const end = e=>{
+    if(fabEl.hasPointerCapture(e.pointerId)) fabEl.releasePointerCapture(e.pointerId);
+    fabEl.classList.remove('dragging');
+    if(moved && vpW()>80) LS.set('pk:fab', JSON.stringify({x:parseFloat(fabEl.style.left), y:parseFloat(fabEl.style.top)}));
+    else { UI.modal={k:'adminQuick'}; render(); }         // แตะเฉยๆ = เปิดเมนู
+  };
+  fabEl.addEventListener('pointerup', end);
+  fabEl.addEventListener('pointercancel', e=>{ fabEl.classList.remove('dragging'); });
+}
+window.addEventListener('resize', ()=>{ if(fabEl) placeFab(); });
 
 function vBoot(){
   const last = LastRoom.load();
@@ -1766,33 +1830,41 @@ function vAdminHome(){
   return UI.tab==='play' ? betPanel(true) : vAdminControl();
 }
 
+/** ปุ่มจัดการรอบ — ใช้ร่วมกันทั้งแท็บคุมห้องและเมนูปุ่มลอย */
+function roundControls(r, big){
+  const g = big?' big':'';
+  if(!r || r.status==='SETTLED' || r.status==='VOIDED')
+    return `<button class="btn big" data-act="openRound">▶ เปิดรอบใหม่</button>`;
+  if(r.status==='OPEN')
+    return `<button class="btn gold${g}" data-act="nav" data-s="payout">🏁 จบรอบ &amp; จ่ายเงินกองกลาง</button>
+      <div class="g2">
+        <button class="btn ${r.complete?'':'sec'}" data-act="lockRound">🔒 ปิดรับลงเงิน</button>
+        <button class="btn sec" data-act="voidRound">✖ ยกเลิกรอบ</button>
+      </div>`;
+  return `<button class="btn gold${g}" data-act="nav" data-s="payout">🏁 จบรอบ &amp; จ่ายเงินกองกลาง</button>
+    <div class="g2">
+      <button class="btn sec" data-act="unlockRound">🔓 เปิดรับอีกครั้ง</button>
+      <button class="btn sec" data-act="voidRound">✖ ยกเลิกรอบ</button>
+    </div>`;
+}
+
 function vAdminControl(){
   const r = S.curRound, ni = netIssued(S), inSys = sumWallets(S)+potNow(S);
   const pend = pendingForAdmin();
   const list = playersList();
   const maxAbs = Math.max(1, ...list.map(p=>Math.abs(profitOf(p.id))));
-  let ctrl='';
-  if(!r || r.status==='SETTLED' || r.status==='VOIDED')
-    ctrl = `<button class="btn big" data-act="openRound">▶ เปิดรอบใหม่</button>`;
-  else if(r.status==='OPEN')
-    ctrl = `<div class="card col" style="gap:7px">
-        <label class="row"><span class="lbl">🃏 โหมดโป๊กเกอร์ — ครบตาแล้วเปิดรอบลงเงินใหม่</span><span class="sp"></span>
-          <input type="checkbox" data-act="setToggle" data-k="multiStreet" ${S.room.settings.multiStreet?'checked':''} style="width:auto"></label>
-        <label class="row"><span class="lbl">ปิดรอบอัตโนมัติเมื่อครบตา</span><span class="sp"></span>
-          <input type="checkbox" data-act="setToggle" data-k="autoClose" ${S.room.settings.autoClose?'checked':''} style="width:auto"></label>
-        <div class="cap">${S.room.settings.multiStreet
-          ? 'ตอนนี้: ทุกคนลงเท่ากัน → ระบบเปิดรอบลงเงินใหม่ให้เอง กองสะสมต่อเนื่อง · คุณกด "จบรอบ" เองเมื่อเปิดไพ่'
-          : 'ตอนนี้: ทุกคนลงเท่ากัน → '+(S.room.settings.autoClose?'ปิดรับลงเงินทันที':'รอคุณกดปิดเอง')}</div>
-      </div>
-      <div class="g2">
-        <button class="btn ${r.complete?'':'sec'}" data-act="lockRound">🔒 ปิดรับลงเงิน</button>
-        <button class="btn sec" data-act="voidRound">✖ ยกเลิกรอบ</button>
-      </div><button class="btn gold" data-act="nav" data-s="payout">🏁 จบรอบ &amp; จ่ายเงินกองกลาง</button>`;
-  else
-    ctrl = `<div class="g2">
-        <button class="btn sec" data-act="unlockRound">🔓 เปิดรับอีกครั้ง</button>
-        <button class="btn sec" data-act="voidRound">✖ ยกเลิกรอบ</button>
-      </div><button class="btn gold big" data-act="nav" data-s="payout">🏁 จบรอบ &amp; จ่ายเงินกองกลาง</button>`;
+  /* ปุ่มจัดการรอบ — ของสำคัญ ต้องอยู่บนสุดใกล้ยอดเงิน */
+  const ctrl = roundControls(r);
+  /* ตัวเลือกที่ไม่เร่งด่วน — ย้ายลงไปล่างสุด */
+  const ctrlOpts = (r && r.status==='OPEN') ? `<div class="card col" style="gap:7px">
+      <label class="row"><span class="lbl">🃏 โหมดโป๊กเกอร์ — ครบตาแล้วเปิดรอบลงเงินใหม่</span><span class="sp"></span>
+        <input type="checkbox" data-act="setToggle" data-k="multiStreet" ${S.room.settings.multiStreet?'checked':''} style="width:auto"></label>
+      <label class="row"><span class="lbl">ปิดรอบอัตโนมัติเมื่อครบตา</span><span class="sp"></span>
+        <input type="checkbox" data-act="setToggle" data-k="autoClose" ${S.room.settings.autoClose?'checked':''} style="width:auto"></label>
+      <div class="cap">${S.room.settings.multiStreet
+        ? 'ตอนนี้: ทุกคนลงเท่ากัน → ระบบเปิดรอบลงเงินใหม่ให้เอง กองสะสมต่อเนื่อง · คุณกด "จบรอบ" เองเมื่อเปิดไพ่'
+        : 'ตอนนี้: ทุกคนลงเท่ากัน → '+(S.room.settings.autoClose?'ปิดรับลงเงินทันที':'รอคุณกดปิดเอง')}</div>
+    </div>` : '';
 
   const alone = r && r.status!=='SETTLED' && notFolded(r).length===1 && r.pot>0
     ? (()=>{ const only=notFolded(r)[0]; return `<div class="ban y pulse">🎯 เหลือ ${esc(nameOf(S,only.memberId))} คนเดียว — จ่ายกอง ฿${fmtS(r.pot)} ทั้งหมด?
@@ -1805,6 +1877,11 @@ function vAdminControl(){
     <div class="card col" style="gap:3px"><span class="cap">เงินในระบบ</span>
       <span class="money-l num ${inSys===ni?'in':'out'}">฿${fmtS(inSys)} ${inSys===ni?'✅':'⛔'}</span></div>
   </div>
+  ${potCard(r)}
+  <div class="col" style="gap:8px">${ctrl}</div>
+  ${alone}
+  ${r?ringRow(r):''}
+  ${turnBanner(r)}
   <div class="card col">
     <div class="row"><b class="h2">ได้ / เสีย รายคน</b><span class="sp"></span><span class="cap">เทียบกับเงินที่เบิกไป</span></div>
     <div class="col" style="gap:6px">
@@ -1816,11 +1893,7 @@ function vAdminControl(){
         </div>`; }).join('')}
     </div>
   </div>
-  ${alone}
-  ${r?ringRow(r):''}
-  ${turnBanner(r)}
-  ${potCard(r)}
-  <div class="col" style="gap:8px">${ctrl}</div>
+  ${ctrlOpts}
   <div class="card col">
     <div class="row"><b class="h2">ผู้เล่น (${list.length}/${S.room.maxSeats})</b><span class="sp"></span>
       <button class="btn sec sm" data-act="nav" data-s="players">จัดการ ›</button></div>
@@ -2252,6 +2325,21 @@ function renderModal(){
   else if(m.k==='repay') html = mTransfer('repay');
   else if(m.k==='manage') html = mManage(m.mid);
   else if(m.k==='more') html = mMore();
+  else if(m.k==='adminQuick'){
+    const r = S.curRound, pend = pendingForAdmin().length;
+    html = mWrap(`
+      <b class="h1" style="text-align:center">👑 จัดการรอบ</b>
+      <div class="card col" style="gap:3px;background:var(--pot-bg);border-color:var(--pot);align-items:center">
+        <span class="lbl pot">เงินรวมในกอง</span>
+        <span class="money pot num">฿${fmtS(r?r.pot:0)}</span>
+        <span class="cap">${r ? 'รอบที่ '+r.index+' · '+(r.status==='OPEN'?(r.phase==='ANTE'?'กำลังลงกองกลาง':'เปิดรับลงเงิน'):r.status==='LOCKED'?'ปิดรับแล้ว':'จบแล้ว') : 'ยังไม่มีรอบที่เปิด'}</span>
+      </div>
+      ${roundControls(r, true)}
+      ${pend?`<button class="btn sec" data-act="nav" data-s="approvals">🔔 มีคำขอรออนุมัติ ${pend} รายการ</button>`:''}
+      <button class="btn sec" data-act="tabFromFab" data-t="control">👑 ไปหน้าคุมห้องเต็มรูปแบบ</button>
+      <button class="btn ghost" data-act="closeModal">ปิด</button>
+      <div class="cap" style="text-align:center">เคล็ดลับ: กดปุ่ม 👑 ค้างแล้วลาก เพื่อย้ายไปวางมุมที่ถนัด</div>`);
+  }
   else if(m.k==='sync') html = mWrap(`<b class="h1" style="text-align:center">สถานะการเชื่อมต่อ</b>
     <div class="card col" style="gap:7px">
       ${m.rows.map(([k,v])=>`<div class="row"><span class="lbl">${esc(k)}</span><span class="sp"></span>
@@ -2458,6 +2546,7 @@ const A = {
   forceLanding(){ LastRoom.clear(); Store.close(); S=blankState(); UI.screen='landing'; render(); },
   nav(d){ UI.screen=d.s; UI.form.winners=undefined; UI.modal=null; render(); },
   tab(d){ UI.tab=d.t; render(); },
+  tabFromFab(d){ UI.modal=null; UI.tab=d.t; render(); },
   closeModal(){ UI.modal=null; UI.form.amt=''; UI.form.to=null; render(); },
   closeMask(e,el){ UI.modal=null; UI.form.amt=''; UI.form.to=null; render(); },
   modal(d){ UI.modal={k:d.m,mid:d.mid}; UI.form.amt=''; UI.form.to=d.mid||null; UI.form.mmode='add'; render(); },
