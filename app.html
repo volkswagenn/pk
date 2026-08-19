@@ -92,6 +92,13 @@ input:focus,select:focus{border-color:var(--brand)}
 .ban.n{background:var(--bg-inset);border:1px solid var(--border);color:var(--ts)}
 @keyframes pls{0%,100%{box-shadow:0 0 0 0 rgba(245,178,61,.4)}50%{box-shadow:0 0 0 6px rgba(245,178,61,0)}}
 .pulse{animation:pls 2s infinite}
+/* ป้ายแจ้งเตือนแบบกะทัดรัด — ไม่กินพื้นที่เต็มความกว้าง */
+.notice{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;
+  border-radius:99px;background:var(--pend-bg);border:1px solid var(--pending);color:var(--pending);
+  font:600 12px/1 var(--f);white-space:nowrap}
+.notice:active{opacity:.7}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.25}}
+.live{display:inline-block;width:8px;height:8px;border-radius:99px;background:var(--in);animation:blip 1.8s infinite}
 
 /* player rings */
 .rings{display:flex;gap:9px;overflow-x:auto;padding:3px 1px 5px}
@@ -791,19 +798,45 @@ const Store = {
     }
     /* ---- Supabase ---- */
     this.sb = await getSupabase(cfg);
-    const {data,error} = await this.sb.from(SB_TABLE).select('event').eq('room_code',code).order('id',{ascending:true});
+    const {data,error} = await this.sb.from(SB_TABLE).select('id,event').eq('room_code',code).order('id',{ascending:true});
     if(error) throw new Error('อ่านข้อมูลห้องไม่ได้: '+error.message);
     this.events = (data||[]).map(r=>r.event);
+    this.lastId = data && data.length ? data[data.length-1].id : 0;
+
+    // ช่องทางที่ 1: Realtime (เร็วที่สุด — ได้ทันทีเป็นวินาที)
     this.chan = this.sb.channel('pk-'+code)
       .on('postgres_changes',
           {event:'INSERT',schema:'public',table:SB_TABLE,filter:'room_code=eq.'+code},
           payload => {
-            const v = payload.new && payload.new.event; if(!v) return;
-            if(this.events.some(e=>e.id===v.id)) return;      // กัน echo ของตัวเอง
-            this.events.push(v); this.onChange && this.onChange();
+            const row = payload.new; if(!row || !row.event) return;
+            if(row.id && row.id>this.lastId) this.lastId = row.id;
+            if(this.events.some(e=>e.id===row.event.id)) return;   // กัน echo ของตัวเอง
+            this.events.push(row.event); this.onChange && this.onChange();
           })
-      .subscribe(st => { this.online = (st==='SUBSCRIBED'); render(); });
+      .subscribe(s => { this.rt = (s==='SUBSCRIBED'); this.online = true; render(); });
+
+    // ช่องทางที่ 2: ดึงซ้ำทุก 4 วินาที — กันกรณี Realtime ไม่ทำงาน (เช่นยังไม่ได้เปิด publication)
+    this.poll = setInterval(()=>this.pull(), 4000);
+    this.online = true;
     this.onChange && this.onChange();
+  },
+
+  /** ดึงเฉพาะ event ที่ใหม่กว่าที่มีอยู่ */
+  async pull(){
+    if(this.mode!=='cloud' || !this.sb || this.pulling) return;
+    this.pulling = true;
+    try{
+      const {data,error} = await this.sb.from(SB_TABLE)
+        .select('id,event').eq('room_code',this.code).gt('id',this.lastId).order('id',{ascending:true});
+      if(error){ this.online=false; return; }
+      this.online = true;
+      let added = false;
+      for(const r of (data||[])){
+        if(r.id>this.lastId) this.lastId = r.id;
+        if(!this.events.some(e=>e.id===r.event.id)){ this.events.push(r.event); added = true; }
+      }
+      if(added) this.onChange && this.onChange();
+    } finally { this.pulling = false; }
   },
 
   async append(ev){
@@ -820,20 +853,25 @@ const Store = {
     }
     this.events.push(ev);                    // แสดงผลทันที ไม่รอ network
     this.onChange && this.onChange();
-    const {error} = await this.sb.from(SB_TABLE).insert({room_code:this.code, event:ev});
+    const {data,error} = await this.sb.from(SB_TABLE)
+      .insert({room_code:this.code, event:ev}).select('id');
     if(error){
       this.events = this.events.filter(e=>e.id!==ev.id);   // ส่งไม่สำเร็จ → ย้อนกลับ
       this.onChange && this.onChange();
       toast('ส่งข้อมูลไม่สำเร็จ: '+error.message,'r');
       throw error;
     }
+    if(data && data[0] && data[0].id>this.lastId) this.lastId = data[0].id;
   },
   close(){
     if(this.bc){ this.bc.close(); this.bc=null; }
     if(this.chan && this.sb){ this.sb.removeChannel(this.chan); this.chan=null; }
-    this.online=false;
+    if(this.poll){ clearInterval(this.poll); this.poll=null; }
+    this.online=false; this.rt=false;
   }
 };
+// กลับมาที่แท็บ/ปลดล็อกมือถือ → ดึงข้อมูลล่าสุดทันที ไม่ต้องรอรอบ poll
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) Store.pull && Store.pull(); });
 
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('โหลดไม่สำเร็จ: '+src)); document.head.appendChild(s); }); }
 let _sbClient = null;
@@ -844,6 +882,13 @@ async function getSupabase(cfg){
   if(!_sbClient) _sbClient = window.supabase.createClient(cfg.url, cfg.key, {realtime:{params:{eventsPerSecond:20}}});
   return _sbClient;
 }
+/* ---- จำห้องล่าสุด: ปิดแอปแล้วเปิดใหม่ให้กลับเข้าห้องเดิม จนกว่าจะกด "ออกจากห้อง" ---- */
+const LastRoom = {
+  save(code, mode){ LS.set('pk:lastRoom', JSON.stringify({code, mode:mode||'local'})); },
+  load(){ try{ const v=JSON.parse(LS.get('pk:lastRoom')||'null'); return (v&&v.code)?v:null; }catch(e){ return null; } },
+  clear(){ LS.del('pk:lastRoom'); }
+};
+
 /** อ่าน config: ค่าที่ฝังไว้ในไฟล์ (ตอน deploy) ก่อน แล้วค่อยดูที่ผู้ใช้กรอกเอง */
 function sbCfg(){
   if(SUPABASE_URL && SUPABASE_ANON_KEY) return {url:SUPABASE_URL, key:SUPABASE_ANON_KEY, baked:true};
@@ -866,10 +911,16 @@ async function cmd(ev){
 
 function refresh(){
   const prev = S;
+  const firstLoad = !prev.room;              // เพิ่งเปิดห้อง — ไม่ต้องเด้งย้อนหลังทั้งหมด
   S = reduce(Store.events);
-  // แจ้งเตือนสิ่งใหม่ที่เกิดขึ้นหลังจากที่เราเห็นล่าสุด
-  if(prev.feed && S.feed.length>prev.feed.length && UI.screen!=='landing'){
-    S.feed.slice(prev.feed.length).forEach(f=>{ if(f.kind!=='silent') toast(f.icon+'  '+f.text, f.kind==='g'?'g':f.kind==='y'?'y':''); });
+  if(!firstLoad && prev.feed && S.feed.length>prev.feed.length && UI.screen!=='landing'){
+    const added = S.feed.slice(prev.feed.length).filter(f=>f.kind!=='silent');
+    if(added.length > 2){
+      // มาพร้อมกันหลายรายการ → รวบเป็นอันเดียว ไม่ให้ท่วมจอ
+      toast('🔔 มี '+added.length+' รายการใหม่ · ล่าสุด: '+added[added.length-1].text, '');
+    } else {
+      added.forEach(f=>toast(f.icon+'  '+f.text, f.kind==='g'?'g':f.kind==='y'?'y':''));
+    }
   }
   render();
 }
@@ -893,11 +944,14 @@ const profitOf = mid => {
   return w.balance + inPot - (w.issuedIn - w.returnedOut);
 };
 
+const TOAST_MAX = 3;                       // แสดงพร้อมกันได้มากสุดกี่อัน
 function toast(text, kind){
+  const box = $('#toasts'); if(!box) return;
+  while(box.children.length >= TOAST_MAX) box.removeChild(box.firstChild);   // อันเก่าสุดหลุดไปก่อน
   const el = document.createElement('div');
   el.className = 'toast '+(kind||'');
   el.textContent = text;
-  $('#toasts').appendChild(el);
+  box.appendChild(el);
   setTimeout(()=>{ el.style.transition='opacity .3s'; el.style.opacity='0'; setTimeout(()=>el.remove(),320); }, 2600);
 }
 
@@ -907,7 +961,8 @@ function toast(text, kind){
 function render(){
   const app = $('#app');
   let html='';
-  if(UI.screen==='landing') html = vLanding();
+  if(UI.screen==='boot') html = vBoot();
+  else if(UI.screen==='landing') html = vLanding();
   else if(UI.screen==='create') html = vCreate();
   else if(UI.screen==='join') html = vJoin();
   else if(!S.room) html = vLanding();
@@ -916,6 +971,16 @@ function render(){
   else html = vRoom();
   app.innerHTML = html;
   renderModal();
+}
+
+function vBoot(){
+  const last = LastRoom.load();
+  return `<div class="body" style="justify-content:center;align-items:center;gap:14px">
+    <div class="empty"><span class="ic">🪙</span>
+      <b class="h2">กำลังกลับเข้าห้อง${last?' '+esc(last.code):''}…</b>
+      <span class="cap">${Store.mode==='cloud'?'กำลังเชื่อมต่อ Supabase':'กำลังอ่านข้อมูลในเครื่อง'}</span></div>
+    <button class="btn ghost sm" data-act="forceLanding">ยกเลิก ไปหน้าแรก</button>
+  </div>`;
 }
 
 /* ---------- landing ---------- */
@@ -1015,10 +1080,13 @@ function vRoom(){
 function vHeader(){
   const n = pendingForAdmin().length + pendingForMe().length;
   return `<div class="hdr">
-    <button data-act="leave">‹</button>
     <b>${esc(S.room.name)}</b>
     <span class="code">${S.room.code}</span>
     <span class="sp"></span>
+    <button class="pill" data-act="syncInfo" title="สถานะการซิงก์">${
+      Store.mode!=='cloud' ? '💻'
+      : Store.rt ? '<span class="live"></span>'
+      : Store.online ? '🔄' : '⚠️'}</button>
     <span class="pill">👥 ${Object.values(S.members).filter(m=>m.status!=='LEFT').length}</span>
     ${n?`<span class="pill pend">🔔 ${n}</span>`:''}
   </div>`;
@@ -1140,7 +1208,7 @@ function betPanel(adminMode){
     const need = r.anteAmount, paid = s?s.ante>0:false;
     const left = r.seats.filter(x=>x.state==='IN'&&x.ante<=0);
     return `
-    ${myPend.length?`<div class="ban y pulse" data-act="openPend">⚠ มี ${myPend.length} คำขอรอคุณตอบ — แตะเพื่อดู</div>`:''}
+    ${myPend.length?`<button class="notice" data-act="openPend">🔔 ${myPend.length} คำขอรอคุณตอบ ›</button>`:''}
     ${adminMode?`<div class="ban a">👑 คุณกำลังเล่นในวงด้วย — ยอดของคุณถูกนับในสมการเงินเหมือนผู้เล่นทุกคน</div>`:''}
     <div class="ban i">🪙 รอบที่ ${r.index} · <b>ลงเงินกองกลาง</b> คนละ ฿${fmtS(need)}</div>
     ${ringRow(r)}
@@ -1190,7 +1258,7 @@ function betPanel(adminMode){
   const canCheck = canAct && mineIn===cur;
 
   return `
-  ${myPend.length?`<div class="ban y pulse" data-act="openPend">⚠ มี ${myPend.length} คำขอรอคุณตอบ — แตะเพื่อดู</div>`:''}
+  ${myPend.length?`<button class="notice" data-act="openPend">🔔 ${myPend.length} คำขอรอคุณตอบ ›</button>`:''}
   ${adminMode?`<div class="ban a">👑 คุณกำลังเล่นในวงด้วย — ยอดของคุณถูกนับในสมการเงินเหมือนผู้เล่นทุกคน</div>`:''}
   ${head}
   ${ringRow(r)}
@@ -1317,7 +1385,7 @@ function vAdminControl(){
         <button class="btn sm" style="margin-left:auto" data-act="payAlone" data-m="${only.memberId}">จ่ายเลย</button></div>`; })() : '';
 
   return `
-  ${pend.length?`<div class="ban y pulse" data-act="nav" data-s="approvals">⚠ มีคำขอรออนุมัติ ${pend.length} รายการ <span class="sp"></span>ดู ›</div>`:''}
+  ${pend.length?`<button class="notice" data-act="nav" data-s="approvals">🔔 ${pend.length} รออนุมัติ ›</button>`:''}
   <div class="g2">
     <div class="card col" style="gap:3px"><span class="cap">เบิกจาก BANK</span><span class="money-l num">฿${fmtS(ni)}</span></div>
     <div class="card col" style="gap:3px"><span class="cap">เงินในระบบ</span>
@@ -1680,6 +1748,14 @@ function renderModal(){
   else if(m.k==='manage') html = mManage(m.mid);
   else if(m.k==='more') html = mMore();
   else if(m.k==='cloud') html = mCloud();
+  else if(m.k==='sync') html = mWrap(`<b class="h1" style="text-align:center">สถานะการซิงก์</b>
+    <div class="card col" style="gap:7px">
+      ${m.rows.map(([k,v])=>`<div class="row"><span class="lbl">${esc(k)}</span><span class="sp"></span>
+        <span class="cap" style="text-align:right;color:var(--tp)">${esc(v)}</span></div>`).join('')}
+    </div>
+    ${Store.mode==='cloud'?`<button class="btn sec" data-act="syncNow">🔄 ดึงข้อมูลล่าสุดเดี๋ยวนี้</button>`
+      :`<button class="btn sec" data-act="cloudSetup">⚙️ ตั้งค่าเล่นข้ามเครื่อง</button>`}
+    <button class="btn ghost" data-act="closeModal">ปิด</button>`, true);
   else if(m.k==='confirm') html = mConfirm(m);
   else if(m.k==='summary') html = mSummary(m.round);
   box.innerHTML = html;
@@ -1852,6 +1928,7 @@ const A = {
     document.documentElement.setAttribute('data-theme', UI.theme==='light'?'light':'dark');
     LS.set('pk:theme',UI.theme); render(); },
   back(){ UI.screen='landing'; render(); },
+  forceLanding(){ LastRoom.clear(); Store.close(); S=blankState(); UI.screen='landing'; render(); },
   nav(d){ UI.screen=d.s; UI.form.winners=undefined; UI.modal=null; render(); },
   tab(d){ UI.tab=d.t; render(); },
   closeModal(){ UI.modal=null; UI.form.amt=''; UI.form.to=null; render(); },
@@ -1879,6 +1956,7 @@ const A = {
         loans:$('#f_loans').checked, strict:$('#f_strict').checked,
         autoClose:$('#f_autoclose').checked, autoGrant:$('#f_auto').checked}});
     if(start>0) await Store.append({t:'ISSUE',mid:me.id,amount:start,kind:'ISSUE_INITIAL',note:'เงินเริ่มต้น'});
+    LastRoom.save(code, Store.mode);
     UI.screen='home'; UI.tab='control'; refresh();
     toast('สร้างห้องแล้ว รหัส '+code,'g');
   },
@@ -1890,11 +1968,19 @@ const A = {
     S = reduce(Store.events);
     if(!S.room) return toast('ไม่พบห้องนี้ — ตรวจรหัสหรือโหมดการเชื่อมต่อ','r');
     if(!S.members[me.id]) await Store.append({t:'MEMBER_JOINED',mid:me.id,name:me.name});
+    LastRoom.save(code, Store.mode);
     UI.screen='home'; refresh();
   },
   async openRoom(d){ try{ await Store.open(d.code, Store.mode); }catch(e){ return toast(e.message,'r'); }
+    LastRoom.save(d.code, Store.mode);
     UI.screen='home'; refresh(); },
-  leave(){ Store.close(); S=blankState(); UI.screen='landing'; render(); },
+  leave(){
+    UI.modal={k:'confirm',title:'ออกจากห้อง?',
+      text:'เงินและประวัติของคุณยังอยู่ในห้อง กลับเข้ามาใหม่ด้วยรหัส '+(S.room?S.room.code:'')+' ได้ตลอด',
+      ok:'ออกจากห้อง',danger:true,
+      fn:()=>{ LastRoom.clear(); Store.close(); S=blankState(); UI.screen='landing'; UI.modal=null; render(); }};
+    render();
+  },
 
   askJoin(){ cmd({t:'JOIN_REQUESTED'}); },
   cancelJoin(){ cmd({t:'JOIN_REJECTED',mid:me.id,reason:'ยกเลิกเอง',by:S.room.ownerId}); },
@@ -1924,6 +2010,20 @@ const A = {
   voidRound(){ UI.modal={k:'confirm',title:'ยกเลิกรอบนี้?',text:'เงินทุกคนจะถูกคืนเต็มจำนวน',ok:'ยกเลิกรอบ',danger:true,
     fn:()=>cmd({t:'ROUND_VOID'})}; render(); },
 
+  syncInfo(){
+    const c = sbCfg();
+    const rows = Store.mode!=='cloud'
+      ? [['โหมด','💻 เครื่องนี้ (localStorage)'],
+         ['ข้ามเครื่อง','ยังไม่ได้ตั้งค่า Supabase'],
+         ['ผลที่ตามมา','คนละเครื่องจะมองไม่เห็นห้องของกัน']]
+      : [['โหมด','☁️ ข้ามเครื่อง (Supabase)'],
+         ['Realtime', Store.rt ? 'ต่ออยู่ ✅ (อัปเดตทันที)' : 'ยังไม่ต่อ ⚠️ (ใช้การดึงซ้ำทุก 4 วิ แทน)'],
+         ['เชื่อมต่อฐานข้อมูล', Store.online ? 'ปกติ ✅' : 'มีปัญหา ⛔'],
+         ['จำนวน event','ที่โหลดมาแล้ว '+Store.events.length+' รายการ'],
+         ['โปรเจกต์', c && c.url ? c.url.replace('https://','') : '—']];
+    UI.modal={k:'sync',rows}; render();
+  },
+  async syncNow(){ toast('กำลังดึงข้อมูลล่าสุด…','y'); await Store.pull(); refresh(); toast('อัปเดตแล้ว','g'); },
   ante(){ cmd({t:'ANTE'}); },
   anteSitout(){ UI.modal={k:'confirm',title:'ไม่ลงกองกลาง?',text:'คุณจะพักรอบนี้ และไม่มีสิทธิ์รับกอง',ok:'พักรอบนี้',danger:true,
     fn:()=>cmd({t:'ANTE_SITOUT'})}; render(); },
@@ -2068,8 +2168,23 @@ document.addEventListener('input', e=>{
 /* ---------- boot ---------- */
 UI.theme = LS.get('pk:theme')||'dark';
 document.documentElement.setAttribute('data-theme', UI.theme==='light'?'light':'dark');
-if(getFbCfg()) Store.mode='cloud';
-render();
+if(sbCfg()) Store.mode='cloud';
+
+(async function boot(){
+  const last = LastRoom.load();
+  if(!last){ render(); return; }
+  // เคยอยู่ห้องไหน กลับเข้าห้องนั้นเลย
+  UI.screen='boot'; render();
+  try{
+    await Store.open(last.code, last.mode || Store.mode);
+    S = reduce(Store.events);
+    if(S.room){ UI.screen='home'; UI.tab='control'; refresh(); return; }
+    toast('ไม่พบห้อง '+last.code+' แล้ว','y');
+  }catch(e){
+    toast('กลับเข้าห้องเดิมไม่สำเร็จ: '+e.message,'r');
+  }
+  LastRoom.clear(); Store.close(); S=blankState(); UI.screen='landing'; render();
+})();
 </script>
 </body>
 </html>
