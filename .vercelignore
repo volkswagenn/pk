@@ -1,0 +1,4 @@
+*.md
+*.sql
+*.dc.html
+node_modules

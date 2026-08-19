@@ -1,0 +1,2073 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0E1116">
+<title>ระบบนับเงินในวงเล่น</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+--f:"IBM Plex Sans Thai",system-ui,-apple-system,sans-serif;
+--bg-base:#0E1116;--bg-surface:#171B22;--bg-elev:#1F252F;--bg-inset:#0A0D11;
+--border:#2A313C;--bs:#3A4350;
+--tp:#F2F5F9;--ts:#9BA6B5;--tm:#66717F;
+--brand:#17A673;--brand4:#22C58A;--brand6:#0F8259;--brand-bg:#0F2B21;
+--in:#22C58A;--out:#FF5C5C;--pending:#F5B23D;--pot:#D4A24C;--admin:#7C6BFF;--info:#3D9CF5;--danger:#E5484D;
+--pot-bg:#241C10;--pend-bg:#2A2113;--info-bg:#0E2233;--admin-bg:#1B1733;--out-bg:#2B1618;
+--chip:rgba(255,255,255,.07);
+--sh-card:0 1px 2px rgba(0,0,0,.4);--sh-float:0 8px 24px rgba(0,0,0,.5);
+}
+[data-theme="light"]{
+--bg-base:#F6F8FA;--bg-surface:#FFFFFF;--bg-elev:#FFFFFF;--bg-inset:#EDF1F5;
+--border:#DDE3EA;--bs:#C3CCD7;
+--tp:#10151C;--ts:#56616F;--tm:#8A94A2;
+--brand:#0F8259;--brand4:#0E8A5F;--brand6:#0B6746;--brand-bg:#E4F5EE;
+--in:#0E8A5F;--out:#D93A3A;--pending:#A9700F;--pot:#8F6717;--admin:#5B49E0;--info:#1E6FBF;--danger:#C42F34;
+--pot-bg:#FBF3E1;--pend-bg:#FDF4E2;--info-bg:#E7F1FB;--admin-bg:#EEEBFD;--out-bg:#FDECEC;
+--chip:rgba(0,0,0,.06);
+--sh-card:0 1px 2px rgba(0,0,0,.06);--sh-float:0 8px 24px rgba(0,0,0,.12);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{background:var(--bg-base);color:var(--tp);font-family:var(--f);font-size:15px;overscroll-behavior:none}
+#app{max-width:480px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;background:var(--bg-base);position:relative}
+.num{font-variant-numeric:tabular-nums}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit}
+input,select{font-family:inherit;font-size:16px;background:var(--bg-inset);border:1px solid var(--border);color:var(--tp);border-radius:11px;padding:12px 13px;width:100%;outline:none}
+input:focus,select:focus{border-color:var(--brand)}
+::-webkit-scrollbar{width:0;height:0}
+
+/* layout */
+.hdr{flex:none;height:56px;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--border);background:var(--bg-surface);position:sticky;top:0;z-index:20}
+.hdr b{font:700 15px/1 var(--f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr .code{font:600 11px/1 var(--f);color:var(--ts);background:var(--chip);padding:5px 8px;border-radius:6px;letter-spacing:1px}
+.body{flex:1;overflow-y:auto;padding:12px 14px 20px;display:flex;flex-direction:column;gap:11px}
+.nav{flex:none;height:66px;border-top:1px solid var(--border);background:var(--bg-surface);display:grid;align-items:center;padding-bottom:env(safe-area-inset-bottom)}
+.nav button{display:flex;flex-direction:column;align-items:center;gap:3px;font:600 10.5px/1 var(--f);color:var(--tm);padding:6px 0;position:relative}
+.nav button .i{font-size:19px}
+.nav button.on{color:var(--brand4)}
+.dot{position:absolute;top:2px;right:50%;transform:translateX(20px);min-width:17px;height:17px;border-radius:9px;background:var(--danger);color:#fff;font:700 10px/17px var(--f);text-align:center;padding:0 4px}
+.foot{flex:none;padding:9px 14px;display:flex;gap:8px;background:linear-gradient(180deg,transparent,var(--bg-base) 45%)}
+
+/* cards + text */
+.card{background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;padding:12px}
+.lbl{font:600 12px/1.3 var(--f);color:var(--ts)}
+.cap{font:400 11px/1.45 var(--f);color:var(--tm)}
+.h1{font:700 19px/1.3 var(--f)}
+.h2{font:700 14px/1.3 var(--f)}
+.money{font:700 34px/1 var(--f)}
+.money-l{font:700 26px/1 var(--f)}
+.money-s{font:700 16px/1 var(--f)}
+.row{display:flex;align-items:center;gap:10px}
+.col{display:flex;flex-direction:column;gap:8px}
+.sp{margin-left:auto}
+.in{color:var(--in)}.out{color:var(--out)}.mut{color:var(--tm)}.pot{color:var(--pot)}.pend{color:var(--pending)}
+
+/* buttons */
+.btn{height:52px;border-radius:12px;background:var(--brand);color:#04140D;font:700 15px/1 var(--f);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;transition:transform .1s}
+.btn:active{transform:scale(.98)}
+.btn small{font:500 11px/1 var(--f);color:rgba(4,20,13,.72)}
+.btn.big{height:62px;font-size:17px}
+.btn.sec{background:var(--bg-inset);border:1px solid var(--bs);color:var(--tp)}
+.btn.sec small{color:var(--tm)}
+.btn.gold{background:var(--pot);color:#241705}
+.btn.gold small{color:rgba(36,23,5,.7)}
+.btn.dgr{background:var(--danger);color:#fff}
+.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--ts)}
+.btn[disabled]{background:var(--bg-inset);border:1px dashed var(--border);color:var(--tm);cursor:not-allowed}
+.btn[disabled] small{color:var(--tm)}
+.btn.sm{height:40px;font-size:13px;border-radius:11px;padding:0 13px;width:auto}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+/* banner */
+.ban{border-radius:11px;padding:9px 11px;font:600 12px/1.45 var(--f);display:flex;gap:8px;align-items:center}
+.ban.y{background:var(--pend-bg);border:1px solid var(--pending);color:var(--pending)}
+.ban.i{background:var(--info-bg);border:1px solid var(--info);color:var(--info)}
+.ban.a{background:var(--admin-bg);border:1px solid var(--admin);color:var(--admin)}
+.ban.g{background:var(--brand-bg);border:1px solid var(--brand);color:var(--brand4)}
+.ban.r{background:var(--out-bg);border:1px solid var(--danger);color:var(--out)}
+.ban.n{background:var(--bg-inset);border:1px solid var(--border);color:var(--ts)}
+@keyframes pls{0%,100%{box-shadow:0 0 0 0 rgba(245,178,61,.4)}50%{box-shadow:0 0 0 6px rgba(245,178,61,0)}}
+.pulse{animation:pls 2s infinite}
+
+/* player rings */
+.rings{display:flex;gap:9px;overflow-x:auto;padding:3px 1px 5px}
+.pr{display:flex;flex-direction:column;align-items:center;gap:5px;flex:none;width:56px}
+.pr .av{width:46px;height:46px;border-radius:99px;background:var(--bg-surface);border:3px solid var(--border);display:flex;align-items:center;justify-content:center;font:700 12px/1 var(--f);color:var(--tp)}
+.pr .nm{font:500 10px/1.1 var(--f);color:var(--ts);text-align:center;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pr .bg{font:700 10px/1 var(--f);padding:3px 6px;border-radius:99px;border:1px solid var(--border);color:var(--tm);white-space:nowrap}
+.pr.fold{opacity:.45}
+.pr.fold .av{border-style:dashed;border-color:#66717F;background:var(--bg-inset);color:var(--tm)}
+.pr.me .av{box-shadow:0 0 0 3px rgba(34,197,138,.2)}
+.pr{position:relative}
+.pr .pos{position:absolute;top:-2px;left:2px;z-index:2;width:16px;height:16px;border-radius:99px;background:var(--bg-inset);border:1px solid var(--border);font:700 9px/14px var(--f);text-align:center;color:var(--tm)}
+.pr.turn .pos{background:var(--pending);color:#241705;border-color:var(--pending)}
+.posbig{width:22px;height:22px;border-radius:99px;background:var(--bg-inset);border:1px solid var(--border);font:700 11px/20px var(--f);text-align:center;color:var(--ts);flex:none}
+.mv{width:26px;height:19px;border-radius:6px;background:var(--bg-inset);border:1px solid var(--border);font-size:9px;color:var(--ts);line-height:1}
+.mv[disabled]{opacity:.3}
+.notation{font:600 10.5px/1.5 ui-monospace,Menlo,monospace;color:var(--pot);background:rgba(0,0,0,.18);border-radius:8px;padding:6px 8px;word-break:break-all}
+[data-theme="light"] .notation{background:rgba(0,0,0,.05)}
+.legend{display:flex;flex-wrap:wrap;gap:9px;background:var(--bg-surface);border:1px solid var(--border);border-radius:11px;padding:8px 10px}
+.legend span{display:flex;align-items:center;gap:5px;font:600 10.5px/1 var(--f);color:var(--ts)}
+.sw{width:9px;height:9px;border-radius:99px;flex:none}
+
+/* chips */
+.chips{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.chip{height:46px;border-radius:99px;background:var(--bg-surface);border:1px solid var(--bs);font:700 14px/1 var(--f);color:var(--tp);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.chip.lock{background:var(--bg-inset);border:1px dashed var(--border);color:var(--tm);font-size:12px}
+.chip.lock i{font-size:8px;font-style:normal}
+.chip.on{box-shadow:0 0 0 3px rgba(255,255,255,.16)}
+
+/* list rows */
+.lrow{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:12px;background:var(--bg-surface);border:1px solid var(--border)}
+.av2{width:34px;height:34px;border-radius:99px;display:flex;align-items:center;justify-content:center;font:700 12px/1 var(--f);flex:none;background:var(--bg-inset);border:1px solid var(--border)}
+.bar{position:relative;height:14px;background:var(--bg-inset);border-radius:4px;flex:1}
+.bar .zero{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--bs)}
+.bar .f{position:absolute;top:2px;bottom:2px}
+
+/* modal + toast */
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(3px);z-index:60;display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:480px;max-height:92dvh;overflow-y:auto;background:var(--bg-elev);border-radius:20px 20px 0 0;border-top:1px solid var(--bs);padding:8px 16px calc(18px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:11px;animation:up .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes up{from{transform:translateY(24px);opacity:.4}}
+.handle{width:38px;height:4px;border-radius:9px;background:var(--bs);margin:5px auto 3px}
+.mask.mid{align-items:center;padding:16px}
+.mask.mid .sheet{border-radius:20px;border:1px solid var(--bs);animation:pop .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes pop{from{transform:scale(.93);opacity:0}}
+#toasts{position:fixed;top:10px;left:0;right:0;z-index:80;display:flex;flex-direction:column;align-items:center;gap:7px;pointer-events:none;padding:0 12px}
+.toast{max-width:456px;width:100%;background:var(--bg-elev);border:1px solid var(--bs);border-radius:12px;padding:10px 12px;font:600 12.5px/1.4 var(--f);box-shadow:var(--sh-float);animation:down .2s}
+@keyframes down{from{transform:translateY(-14px);opacity:0}}
+.toast.g{border-color:var(--brand);color:var(--brand4)}
+.toast.r{border-color:var(--danger);color:var(--out)}
+.toast.y{border-color:var(--pending);color:var(--pending)}
+
+/* misc */
+.kbd{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.kbd button{height:50px;border-radius:11px;background:var(--bg-inset);border:1px solid var(--border);font:700 18px/1 var(--f)}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:5px 9px;border-radius:99px;background:var(--chip);font:600 11px/1 var(--f);color:var(--ts)}
+.tabs{display:flex;background:var(--bg-inset);border:1px solid var(--border);border-radius:12px;padding:3px;gap:3px}
+.tabs button{flex:1;height:38px;border-radius:9px;font:600 13px/1 var(--f);color:var(--ts)}
+.tabs button.on{background:var(--bg-surface);color:var(--tp);box-shadow:var(--sh-card)}
+.empty{text-align:center;padding:34px 16px;color:var(--tm);display:flex;flex-direction:column;gap:8px;align-items:center}
+.empty .ic{font-size:32px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:8px 6px;text-align:right;border-bottom:1px solid var(--border)}
+th:first-child,td:first-child{text-align:left}
+th{font:600 11px/1 var(--f);color:var(--tm)}
+.sel{outline:2px solid var(--brand4);outline-offset:1px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modals"></div>
+<div id="toasts"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   ระบบนับเงินในวงเล่น — Single-file app
+   สถาปัตยกรรม: Event-sourced. state = reduce(events)
+   ชั้นซิงก์ 2 โหมด: local (BroadcastChannel) / cloud (Firebase RTDB)
+   ============================================================ */
+
+/* ─────────────────────────────────────────────────────────────
+   ตั้งค่า Supabase สำหรับเวอร์ชันที่ deploy (Vercel)
+   ใส่ค่า 2 บรรทัดนี้แล้วทุกคนที่เปิดเว็บจะอยู่โหมดข้ามเครื่องทันที
+   ถ้าเว้นว่างไว้ แอปจะเริ่มที่โหมด "เครื่องนี้" และให้กรอกค่าเองในหน้าตั้งค่า
+   ───────────────────────────────────────────────────────────── */
+const SUPABASE_URL      = "";   // เช่น "https://xxxxxxxx.supabase.co"
+const SUPABASE_ANON_KEY = "";   // anon public key
+const SB_TABLE = 'pk_events';
+const SB_CDN   = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+
+const TIER_COLORS = ['#22C58A','#D4A24C','#3D9CF5','#C77DFF','#FF9F45','#FF6FA5'];
+const TIER_INK    = ['#04140D','#241705','#04121F','#1B0A26','#2A1403','#2B0A18'];
+const AVCOLORS = ['#22C58A','#3D9CF5','#F5B23D','#FF6FA5','#C77DFF','#FF9F45','#4ECDC4','#FF8A65'];
+
+/* ---------- utils ---------- */
+const $ = s => document.querySelector(s);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const B = n => Math.round(n*100);                       // บาท -> สตางค์
+const fmt = s => (s/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtS = s => (s/100).toLocaleString('th-TH',{maximumFractionDigits:2});
+const initials = n => (n||'?').trim().slice(0,2);
+const roomCode = () => { const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let r=''; for(let i=0;i<6;i++) r+=A[Math.floor(Math.random()*A.length)]; return r; };
+const nowT = () => Date.now();
+
+/* ---------- storage ที่ทนทาน (private mode / data: URL / iframe ใช้ได้) ---------- */
+const LS = (()=>{
+  let ok = true;
+  try{ window.localStorage.setItem('pk:_t','1'); window.localStorage.removeItem('pk:_t'); }
+  catch(e){ ok = false; }
+  const mem = {};
+  return {
+    ok,
+    get(k){ try{ return ok ? window.localStorage.getItem(k) : (mem[k]??null); }catch(e){ return mem[k]??null; } },
+    set(k,v){ try{ if(ok) window.localStorage.setItem(k,v); else mem[k]=v; }catch(e){ mem[k]=v; } },
+    del(k){ try{ if(ok) window.localStorage.removeItem(k); else delete mem[k]; }catch(e){ delete mem[k]; } }
+  };
+})();
+function safeChannel(name){
+  try{ return new BroadcastChannel(name); }catch(e){ return {postMessage(){}, close(){}, set onmessage(v){}}; }
+}
+
+/* ---------- identity ---------- */
+const Me = {
+  load(){ try{ return JSON.parse(LS.get('pk:me')||'null'); }catch(e){ return null; } },
+  save(o){ LS.set('pk:me', JSON.stringify(o)); }
+};
+let me = Me.load() || { id: uid(), name: '' };
+Me.save(me);
+
+/* ============================================================
+   ENGINE — reduce(events) -> state
+   ทุก event ที่ผ่าน validate แล้วเท่านั้นถึงจะเปลี่ยน state
+   ============================================================ */
+function blankState(){
+  return {
+    room:null, members:{}, wallets:{}, bank:{issued:0,returned:0},
+    rounds:[], curRound:null, lastWinnerId:null, requests:{}, debts:{}, txs:[], feed:[],
+    seq:0, broken:null
+  };
+}
+const netIssued = st => st.bank.issued - st.bank.returned;
+const sumWallets = st => Object.values(st.wallets).reduce((a,w)=>a+w.balance,0);
+const potNow = st => st.curRound ? st.curRound.pot : 0;
+
+function ensureWallet(st,mid){
+  if(!st.wallets[mid]) st.wallets[mid] = {balance:0,issuedIn:0,returnedOut:0,totalBet:0,totalWon:0};
+  return st.wallets[mid];
+}
+function pushTx(st,ev,type,from,to,amount,note){
+  st.seq++;
+  st.txs.push({seq:st.seq,id:ev.id,type,from,to,amount,note:note||'',by:ev.by,at:ev.at,roundId:ev.roundId||null});
+}
+function feed(st,ev,icon,text,kind){
+  st.feed.push({id:ev.id,at:ev.at,icon,text,kind:kind||'n'});
+  if(st.feed.length>400) st.feed.shift();
+}
+function nameOf(st,id){ return st.members[id]?.name || '—'; }
+function seatOf(r,mid){ return r.seats.find(s=>s.memberId===mid); }
+function activeSeats(r){ return r.seats.filter(s=>s.state!=='SITTING_OUT'); }
+function notFolded(r){ return activeSeats(r).filter(s=>s.state!=='FOLDED'); }
+
+/* ---- กติกาโป๊กเกอร์: ใครต้องตัดสินใจต่อ / รอบครบหรือยัง ---- */
+function needsAct(r,s){ return s.state==='IN' && (!s.acted || s.contributed < r.currentBet); }
+function roundComplete(r){
+  const ins = r.seats.filter(s=>s.state==='IN');
+  if(ins.length<=1) return true;                 // เหลือคนเดียว = จบทันที
+  return ins.every(s=>!needsAct(r,s));
+}
+/** หาคนถัดไปที่ต้องลง เริ่มนับจากตำแหน่งถัดจาก fromPos */
+function nextTurn(r, fromPos){
+  const order = r.seats.slice().sort((a,b)=>a.pos-b.pos);
+  const n = order.length;
+  if(!n) return null;
+  let start = order.findIndex(s=>s.pos===fromPos);
+  if(start<0) start = -1;
+  for(let i=1;i<=n;i++){
+    const s = order[(start+i+n)%n];
+    if(needsAct(r,s)) return s.memberId;
+  }
+  return null;
+}
+/** เรียกหลังทุก action: เลื่อนตา + ปิดรอบอัตโนมัติถ้าเปิดไว้ */
+function afterAction(st, r, ev, actedPos){
+  if(roundComplete(r)){
+    r.turn = null; r.complete = true;
+    if(st.room.settings.autoClose && r.status==='OPEN'){
+      r.status='LOCKED';
+      feed(st,ev,'🔒','ครบตาแล้ว — ปิดรับลงเงินอัตโนมัติ (กองรวม ฿'+fmtS(r.pot)+')','y');
+    }
+  } else {
+    r.turn = nextTurn(r, actedPos);
+    r.complete = false;
+  }
+}
+/** ลงกองกลางครบทุกคนหรือยัง — ครบแล้วเริ่มเดิมพันที่ starterId */
+function anteComplete(r){
+  const ins = r.seats.filter(s=>s.state==='IN');
+  return ins.length>0 && ins.every(s=>s.ante>0);
+}
+function maybeStartBetting(st, r, ev){
+  if(r.phase!=='ANTE' || !anteComplete(r)) return;
+  r.phase='BETTING';
+  // ถ้าผู้เริ่มพักรอบนี้ไป ให้เลื่อนไปคนถัดไปที่ยังเล่นอยู่
+  let start = r.seats.find(s=>s.memberId===r.starterId && s.state==='IN');
+  if(!start){
+    const ord = r.seats.slice().sort((a,b)=>a.pos-b.pos).filter(s=>s.state==='IN');
+    start = ord[0]||null;
+    if(start) r.starterId = start.memberId;
+  }
+  r.turn = start?start.memberId:null;
+  feed(st,ev,'🎯','ลงกองกลางครบแล้ว (฿'+fmtS(r.pot)+') — เริ่มเดิมพันที่ '+(start?nameOf(st,start.memberId):'—'),'g');
+}
+/** สัญลักษณ์ลำดับการลง เช่น 1/0 › 2/20 › 3/หมอบ */
+function actionNotation(r){
+  return (r.log||[]).map(a=>a.pos+'/'+(a.kind==='FOLD'?'หมอบ':fmtS(a.level))).join(' › ');
+}
+
+/* --- ตัวตรวจ: คืน null ถ้าผ่าน, คืนข้อความถ้าไม่ผ่าน --- */
+function validate(st, ev){
+  const R = st.room, me_ = st.members[ev.by];
+  if(ev.t!=='ROOM_CREATED'){
+    if(!R) return 'ยังไม่มีห้อง';
+    if(R.status==='CLOSED' && ev.t!=='ROOM_CLOSED') return 'ห้องปิดแล้ว';
+  }
+  const isAdmin = m => m && (m.role==='ADMIN'||m.role==='CO_ADMIN');
+  switch(ev.t){
+    case 'ROOM_CREATED': return st.room ? 'มีห้องอยู่แล้ว' : null;
+    case 'MEMBER_JOINED': return st.members[ev.mid] ? 'อยู่ในห้องแล้ว' : null;
+    case 'JOIN_REQUESTED': {
+      const m = st.members[ev.by]; if(!m) return 'ไม่พบผู้ใช้';
+      if(m.status!=='WATCHING') return 'ขอไปแล้ว';
+      return null;
+    }
+    case 'JOIN_APPROVED': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      const m = st.members[ev.mid]; if(!m) return 'ไม่พบผู้เล่น';
+      if(m.status==='PLAYING') return 'เล่นอยู่แล้ว';
+      const used = Object.values(st.members).filter(x=>x.status==='PLAYING'||x.status==='SITTING_OUT').length;
+      if(used >= st.room.maxSeats) return 'ที่นั่งเต็ม เพิ่มที่นั่งก่อน';
+      return null;
+    }
+    case 'JOIN_REJECTED': return isAdmin(me_)?null:'เฉพาะ Admin';
+    case 'ISSUE': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      if(ev.amount<=0) return 'จำนวนเงินไม่ถูกต้อง';
+      return null;
+    }
+    case 'RETURN_TO_BANK': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      const w = st.wallets[ev.mid];
+      if(!w || w.balance < ev.amount) return 'เงินในกระเป๋าไม่พอ';
+      return null;
+    }
+    case 'TOPUP_REQUESTED': {
+      const m = st.members[ev.by];
+      if(!m || m.status!=='PLAYING') return 'ต้องเป็นผู้เล่นก่อน';
+      if(ev.amount<=0) return 'จำนวนเงินไม่ถูกต้อง';
+      return null;
+    }
+    case 'REQ_APPROVED': case 'REQ_REJECTED': {
+      const rq = st.requests[ev.rid];
+      if(!rq) return 'ไม่พบคำขอ';
+      if(rq.status!=='PENDING') return 'คำขอนี้ถูกดำเนินการไปแล้ว';
+      if(rq.approver==='ADMIN' && !isAdmin(me_)) return 'เฉพาะ Admin';
+      if(rq.approver!=='ADMIN' && rq.approver!==ev.by) return 'ไม่ใช่ผู้มีสิทธิ์อนุมัติ';
+      if(ev.t==='REQ_APPROVED' && rq.type==='BORROW'){
+        const w = st.wallets[rq.from];
+        if(!w || w.balance < rq.amount) return 'เงินของผู้ให้ยืมไม่พอแล้ว';
+      }
+      return null;
+    }
+    case 'TRANSFER': {
+      const w = st.wallets[ev.from];
+      if(ev.from===ev.to) return 'โอนให้ตัวเองไม่ได้';
+      if(ev.amount<=0) return 'จำนวนเงินไม่ถูกต้อง';
+      if(!w || w.balance < ev.amount) return 'เงินไม่พอ';
+      if(ev.by!==ev.from) return 'ต้องเป็นเจ้าของกระเป๋า';
+      return null;
+    }
+    case 'BORROW_REQUESTED': {
+      if(ev.from===ev.to) return 'ยืมจากตัวเองไม่ได้';
+      if(ev.amount<=0) return 'จำนวนเงินไม่ถูกต้อง';
+      return null;
+    }
+    case 'ROUND_OPENED': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      if(st.curRound && st.curRound.status!=='SETTLED' && st.curRound.status!=='VOIDED') return 'ยังมีรอบที่เปิดอยู่';
+      return null;
+    }
+    /* ev.amount = "ยอดรวมของรอบ (level)" ไม่ใช่ยอดที่จ่ายเพิ่ม */
+    case 'BET': {
+      const r = st.curRound;
+      if(!r || r.status!=='OPEN') return 'รอบนี้ปิดรับลงเงินแล้ว';
+      if(r.phase==='ANTE') return 'ต้องลงเงินกองกลางให้ครบทุกคนก่อน';
+      const m = st.members[ev.by];
+      if(!m || m.status!=='PLAYING') return 'คุณยังไม่ได้รับอนุมัติให้เล่น';
+      const s = seatOf(r,ev.by);
+      if(!s) return 'คุณไม่ได้อยู่ในรอบนี้';
+      if(s.state==='FOLDED') return 'คุณหมอบรอบนี้แล้ว';
+      if(s.state==='SITTING_OUT') return 'คุณพักรอบนี้';
+      if(!needsAct(r,s)) return 'คุณตามครบแล้ว รอคนอื่น';
+      if(st.room.settings.strict && r.turn && r.turn!==ev.by) return 'ยังไม่ถึงตาคุณ — ตาของ '+nameOf(st,r.turn);
+      if(ev.amount < r.currentBet) return 'ต้องลงอย่างน้อย ฿'+fmtS(r.currentBet);
+      const cost = ev.amount - s.contributed;
+      if(cost<=0) return 'ยอดนี้ไม่ได้เพิ่มจากที่คุณลงไว้ — กด "ผ่าน" แทน';
+      const w = st.wallets[ev.by];
+      if(!w || w.balance < cost) return 'เงินไม่พอ (ต้องจ่ายเพิ่ม ฿'+fmtS(cost)+')';
+      return null;
+    }
+    case 'FOLD': {
+      const r = st.curRound;
+      if(!r || r.status!=='OPEN') return 'รอบนี้ปิดแล้ว';
+      if(r.phase==='ANTE') return 'ยังอยู่ในช่วงลงกองกลาง';
+      const s = seatOf(r,ev.by);
+      if(!s || s.state!=='IN') return 'คุณไม่ได้อยู่ในรอบนี้';
+      if(st.room.settings.strict && r.turn && r.turn!==ev.by) return 'ยังไม่ถึงตาคุณ';
+      if(notFolded(r).length<=1) return 'คุณเป็นคนสุดท้ายที่เหลือ หมอบไม่ได้';
+      return null;
+    }
+    case 'CHECK': {
+      const r = st.curRound;
+      if(!r || r.status!=='OPEN') return 'รอบนี้ปิดแล้ว';
+      if(r.phase==='ANTE') return 'ยังอยู่ในช่วงลงกองกลาง';
+      const s = seatOf(r,ev.by);
+      if(!s || s.state!=='IN') return 'คุณไม่ได้อยู่ในรอบนี้';
+      if(s.contributed < r.currentBet)
+        return 'ต้องตามให้ครบ ฿'+fmtS(r.currentBet)+' (จ่ายเพิ่ม ฿'+fmtS(r.currentBet-s.contributed)+') หรือหมอบ';
+      if(st.room.settings.strict && r.turn && r.turn!==ev.by) return 'ยังไม่ถึงตาคุณ';
+      if(s.acted && s.contributed===r.currentBet) return 'คุณตัดสินใจไปแล้ว';
+      return null;
+    }
+    case 'SEATS_REORDER': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      return null;
+    }
+    /* ---- ลงเงินกองกลาง (ante) ก่อนเริ่มเดิมพัน ---- */
+    case 'ANTE': {
+      const r = st.curRound;
+      if(!r || r.status!=='OPEN') return 'รอบนี้ปิดแล้ว';
+      if(r.phase!=='ANTE') return 'พ้นช่วงลงเงินกองกลางแล้ว';
+      const m = st.members[ev.by];
+      if(!m || m.status!=='PLAYING') return 'คุณยังไม่ได้รับอนุมัติให้เล่น';
+      const s = seatOf(r,ev.by);
+      if(!s || s.state!=='IN') return 'คุณไม่ได้อยู่ในรอบนี้';
+      if(s.ante>0) return 'คุณลงกองกลางไปแล้ว';
+      const w = st.wallets[ev.by];
+      if(!w || w.balance < r.anteAmount) return 'เงินไม่พอลงกองกลาง (ต้องมี ฿'+fmtS(r.anteAmount)+')';
+      return null;
+    }
+    case 'ANTE_SITOUT': {
+      const r = st.curRound;
+      if(!r || r.phase!=='ANTE') return 'ไม่อยู่ในช่วงลงกองกลาง';
+      const s = seatOf(r,ev.by);
+      if(!s || s.state!=='IN') return 'คุณไม่ได้อยู่ในรอบนี้';
+      if(s.ante>0) return 'คุณลงกองกลางไปแล้ว';
+      return null;
+    }
+    case 'ADMIN_TRANSFERRED': {
+      if(!me_ || me_.role!=='ADMIN') return 'เฉพาะ Admin เจ้าของห้องเท่านั้น';
+      if(ev.mid===ev.by) return 'คุณเป็น Admin อยู่แล้ว';
+      const t = st.members[ev.mid];
+      if(!t) return 'ไม่พบผู้เล่นคนนี้';
+      if(t.status!=='PLAYING') return 'ต้องเป็นผู้เล่นที่อยู่ในวงเท่านั้น';
+      return null;
+    }
+    case 'ROUND_LOCK': case 'ROUND_UNLOCK': case 'ROUND_VOID': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      if(!st.curRound) return 'ไม่มีรอบ';
+      return null;
+    }
+    case 'PAYOUT': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      const r = st.curRound;
+      if(!r) return 'ไม่มีรอบ';
+      const tot = ev.winners.reduce((a,w)=>a+w.amount,0);
+      if(tot !== r.pot) return 'ยอดจ่ายต้องเท่ากองกลางพอดี';
+      for(const w of ev.winners){
+        const s = seatOf(r,w.memberId);
+        if(s && s.state==='FOLDED') return 'ผู้เล่นนี้หมอบรอบนี้แล้ว';
+        if(w.amount<0) return 'จำนวนเงินไม่ถูกต้อง';
+      }
+      return null;
+    }
+    case 'SEATS_SET': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      const used = Object.values(st.members).filter(x=>x.status==='PLAYING'||x.status==='SITTING_OUT').length;
+      if(ev.n < used) return 'ลดที่นั่งต่ำกว่าคนที่เล่นอยู่ไม่ได้';
+      if(ev.n<1||ev.n>20) return 'ที่นั่งต้องอยู่ระหว่าง 1–20';
+      return null;
+    }
+    case 'MEMBER_REMOVED': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      const w = st.wallets[ev.mid];
+      if(w && w.balance>0) return 'ผู้เล่นยังมีเงิน ฿'+fmtS(w.balance)+' ต้องเคลียร์ก่อน';
+      return null;
+    }
+    case 'SETTINGS_SET': return isAdmin(me_)?null:'เฉพาะ Admin';
+    case 'ROOM_CLOSED': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      if(st.curRound && !['SETTLED','VOIDED'].includes(st.curRound.status)) return 'ต้องจบรอบก่อน';
+      if(sumWallets(st)!==0) return 'ต้องคืนเงินทุกคนเข้า BANK ก่อน';
+      return null;
+    }
+    case 'REVERSAL': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      return null;
+    }
+  }
+  return null;
+}
+
+/* --- apply: เปลี่ยน state (เรียกหลัง validate ผ่านแล้วเท่านั้น) --- */
+function apply(st, ev){
+  switch(ev.t){
+    case 'ROOM_CREATED': {
+      st.room = {code:ev.code,name:ev.name,ownerId:ev.by,status:'ACTIVE',maxSeats:ev.maxSeats,
+                 settings:ev.settings,createdAt:ev.at};
+      st.members[ev.by] = {id:ev.by,name:ev.name2,role:'ADMIN',seatNo:1,status:'PLAYING',color:AVCOLORS[0]};
+      ensureWallet(st,ev.by);
+      feed(st,ev,'🏠','สร้างห้อง "'+ev.name+'"','n');
+      break;
+    }
+    case 'MEMBER_JOINED': {
+      const n = Object.keys(st.members).length;
+      st.members[ev.mid] = {id:ev.mid,name:ev.name,role:'SPECTATOR',seatNo:null,status:'WATCHING',color:AVCOLORS[n%AVCOLORS.length]};
+      ensureWallet(st,ev.mid);
+      feed(st,ev,'👋',ev.name+' เข้ามาดูในห้อง','n');
+      break;
+    }
+    case 'JOIN_REQUESTED': {
+      st.members[ev.by].status='PENDING_JOIN';
+      st.requests[ev.id]={id:ev.id,type:'JOIN',by:ev.by,from:null,to:ev.by,amount:0,
+        approver:'ADMIN',status:'PENDING',at:ev.at,note:''};
+      break;
+    }
+    case 'JOIN_APPROVED': {
+      const m = st.members[ev.mid];
+      m.status='PLAYING'; m.role = m.role==='SPECTATOR'?'PLAYER':m.role;
+      const taken = Object.values(st.members).map(x=>x.seatNo).filter(Boolean);
+      let s=1; while(taken.includes(s)) s++;
+      m.seatNo = s;
+      for(const k in st.requests) if(st.requests[k].type==='JOIN'&&st.requests[k].to===ev.mid&&st.requests[k].status==='PENDING') st.requests[k].status='APPROVED';
+      if(ev.amount>0){
+        const w = ensureWallet(st,ev.mid);
+        w.balance+=ev.amount; w.issuedIn+=ev.amount; st.bank.issued+=ev.amount;
+        pushTx(st,ev,'ISSUE_INITIAL','BANK','W:'+ev.mid,ev.amount,'เงินเริ่มต้น');
+        feed(st,ev,'✅',m.name+' เข้าร่วมวง (รับเงินเริ่มต้น ฿'+fmtS(ev.amount)+')','g');
+      } else feed(st,ev,'✅',m.name+' เข้าร่วมวง','g');
+      // เข้ากลางรอบ -> พักรอบนี้
+      if(st.curRound && st.curRound.status==='OPEN' && !seatOf(st.curRound,ev.mid))
+        st.curRound.seats.push({memberId:ev.mid,pos:st.curRound.seats.length+1,state:'SITTING_OUT',contributed:0,acted:true,tier:null,lastKind:null});
+      break;
+    }
+    case 'JOIN_REJECTED': {
+      const m = st.members[ev.mid]; if(m) m.status='WATCHING';
+      for(const k in st.requests) if(st.requests[k].type==='JOIN'&&st.requests[k].to===ev.mid&&st.requests[k].status==='PENDING'){ st.requests[k].status='REJECTED'; st.requests[k].reason=ev.reason||''; }
+      break;
+    }
+    case 'ISSUE': {
+      const w = ensureWallet(st,ev.mid);
+      w.balance+=ev.amount; w.issuedIn+=ev.amount; st.bank.issued+=ev.amount;
+      pushTx(st,ev,ev.kind||'TOPUP_GRANT','BANK','W:'+ev.mid,ev.amount,ev.note);
+      feed(st,ev,'📤','เบิกจาก BANK → '+nameOf(st,ev.mid)+' ฿'+fmtS(ev.amount),'g');
+      st.pending_ack = st.pending_ack||{};
+      break;
+    }
+    case 'RETURN_TO_BANK': {
+      const w = st.wallets[ev.mid];
+      w.balance-=ev.amount; w.returnedOut+=ev.amount; st.bank.returned+=ev.amount;
+      pushTx(st,ev,'RETURN_TO_BANK','W:'+ev.mid,'BANK',ev.amount,ev.note);
+      feed(st,ev,'📥',nameOf(st,ev.mid)+' คืนเงินเข้า BANK ฿'+fmtS(ev.amount),'n');
+      break;
+    }
+    case 'TOPUP_REQUESTED': {
+      st.requests[ev.id]={id:ev.id,type:'TOPUP',by:ev.by,from:null,to:ev.by,amount:ev.amount,
+        approver:'ADMIN',status:'PENDING',at:ev.at,note:ev.note||''};
+      break;
+    }
+    case 'BORROW_REQUESTED': {
+      st.requests[ev.id]={id:ev.id,type:'BORROW',by:ev.by,from:ev.from,to:ev.to,amount:ev.amount,
+        approver:ev.from,status:'PENDING',at:ev.at,note:ev.note||''};
+      break;
+    }
+    case 'REQ_APPROVED': {
+      const rq = st.requests[ev.rid]; rq.status='APPROVED'; rq.by2=ev.by;
+      if(rq.type==='TOPUP'){
+        const w = ensureWallet(st,rq.to);
+        w.balance+=rq.amount; w.issuedIn+=rq.amount; st.bank.issued+=rq.amount;
+        pushTx(st,ev,'TOPUP_REQUEST','BANK','W:'+rq.to,rq.amount,rq.note);
+        feed(st,ev,'💰',nameOf(st,rq.to)+' เติมเงิน ฿'+fmtS(rq.amount),'g');
+      } else if(rq.type==='BORROW'){
+        const a=st.wallets[rq.from], b=ensureWallet(st,rq.to);
+        a.balance-=rq.amount; b.balance+=rq.amount;
+        pushTx(st,ev,'TRANSFER_BORROW','W:'+rq.from,'W:'+rq.to,rq.amount,rq.note);
+        st.debts[ev.id]={id:ev.id,debtor:rq.to,creditor:rq.from,principal:rq.amount,outstanding:rq.amount,status:'OPEN'};
+        feed(st,ev,'🤝',nameOf(st,rq.from)+' ให้ '+nameOf(st,rq.to)+' ยืมเงิน ฿'+fmtS(rq.amount),'n');
+      }
+      break;
+    }
+    case 'REQ_REJECTED': {
+      const rq = st.requests[ev.rid]; rq.status='REJECTED'; rq.reason=ev.reason||'';
+      if(rq.type==='JOIN'){ const m=st.members[rq.to]; if(m) m.status='WATCHING'; }
+      break;
+    }
+    case 'TRANSFER': {
+      const a=st.wallets[ev.from], b=ensureWallet(st,ev.to);
+      a.balance-=ev.amount; b.balance+=ev.amount;
+      pushTx(st,ev,ev.kind||'TRANSFER_GIVE','W:'+ev.from,'W:'+ev.to,ev.amount,ev.note);
+      if(ev.kind==='DEBT_REPAY'){
+        for(const k in st.debts){ const d=st.debts[k];
+          if(d.status==='OPEN'&&d.debtor===ev.from&&d.creditor===ev.to){
+            const pay=Math.min(d.outstanding,ev.amount); d.outstanding-=pay;
+            if(d.outstanding<=0) d.status='SETTLED';
+          }
+        }
+        feed(st,ev,'↩️',nameOf(st,ev.from)+' คืนหนี้ '+nameOf(st,ev.to)+' ฿'+fmtS(ev.amount),'n');
+      } else {
+        feed(st,ev,'💸',nameOf(st,ev.from)+' โอนเงินให้ '+nameOf(st,ev.to)+' ฿'+fmtS(ev.amount),'n');
+      }
+      break;
+    }
+    case 'ROUND_OPENED': {
+      const idx = st.rounds.length+1;
+      const seats = Object.values(st.members).filter(m=>m.status==='PLAYING')
+        .sort((a,b)=>a.seatNo-b.seatNo)
+        .map((m,i)=>({memberId:m.id,pos:i+1,state:'IN',ante:0,contributed:0,acted:false,tier:null,lastKind:null}));
+      const ante = st.room.settings.anteAmount||0;
+      // ผู้เริ่ม = คนที่ได้เงินรอบก่อน ถ้าไม่มี/ไม่อยู่แล้ว → คนตำแหน่งแรก
+      const startSeat = (st.lastWinnerId && seats.find(s=>s.memberId===st.lastWinnerId)) || seats[0] || null;
+      const r = {id:ev.id,index:idx,status:'OPEN',phase: ante>0?'ANTE':'BETTING',
+                 anteAmount:ante, pot:0,totalIn:0,currentBet:0,tiers:[],seats,
+                 starterId: startSeat?startSeat.memberId:null,
+                 turn: ante>0 ? null : (startSeat?startSeat.memberId:null),
+                 complete:false,log:[], openedAt:ev.at,winners:[]};
+      st.rounds.push(r); st.curRound=r;
+      const who = startSeat?nameOf(st,startSeat.memberId):'—';
+      feed(st,ev,'🟢','เปิดรอบที่ '+idx+(ante>0?' — ลงกองกลางคนละ ฿'+fmtS(ante):'')+' · เริ่มที่ '+who,'g');
+      break;
+    }
+    case 'ANTE': {
+      const r=st.curRound, s=seatOf(r,ev.by), w=st.wallets[ev.by];
+      w.balance-=r.anteAmount; w.totalBet+=r.anteAmount;
+      r.pot+=r.anteAmount; r.totalIn+=r.anteAmount;
+      s.ante=r.anteAmount;
+      pushTx(st,{...ev,roundId:r.id},'ANTE','W:'+ev.by,'POT:'+r.id,r.anteAmount,'ลงกองกลาง');
+      feed(st,ev,'🪙',nameOf(st,ev.by)+' ลงกองกลาง ฿'+fmtS(r.anteAmount)+' · กองรวม ฿'+fmtS(r.pot),'n');
+      maybeStartBetting(st,r,ev);
+      break;
+    }
+    case 'ANTE_SITOUT': {
+      const r=st.curRound, s=seatOf(r,ev.by);
+      s.state='SITTING_OUT'; s.acted=true;
+      feed(st,ev,'💤',nameOf(st,ev.by)+' ไม่ลงกองกลาง — พักรอบนี้','n');
+      maybeStartBetting(st,r,ev);
+      break;
+    }
+    case 'ADMIN_TRANSFERRED': {
+      const from=st.members[ev.by], to=st.members[ev.mid];
+      from.role='PLAYER'; to.role='ADMIN'; st.room.ownerId=ev.mid;
+      feed(st,ev,'👑','โอนสิทธิ์ Admin จาก '+from.name+' ให้ '+to.name,'y');
+      break;
+    }
+    case 'BET': {
+      const r=st.curRound, s=seatOf(r,ev.by), w=st.wallets[ev.by];
+      const cost = ev.amount - s.contributed;
+      const isRaise = ev.amount > r.currentBet;
+      w.balance-=cost; w.totalBet+=cost;
+      r.pot+=cost; r.totalIn+=cost;
+      s.contributed = ev.amount; s.acted = true; s.lastKind = isRaise?'RAISE':'CALL';
+      let t = r.tiers.findIndex(x=>x.amount===ev.amount);
+      if(t<0){ r.tiers.push({amount:ev.amount,color:TIER_COLORS[r.tiers.length%TIER_COLORS.length],ink:TIER_INK[r.tiers.length%TIER_INK.length]}); t=r.tiers.length-1; }
+      s.tier=t;
+      if(isRaise){
+        r.currentBet = ev.amount;
+        // ขึ้นเดิมพัน = ทุกคนที่เหลือต้องกลับมาตัดสินใจใหม่
+        r.seats.forEach(x=>{ if(x.state==='IN' && x.memberId!==ev.by) x.acted=false; });
+      }
+      r.log.push({pos:s.pos,level:ev.amount,kind:isRaise?'RAISE':'CALL',by:ev.by});
+      pushTx(st,{...ev,roundId:r.id},'BET','W:'+ev.by,'POT:'+r.id,cost,isRaise?'ขึ้นเป็น ฿'+fmtS(ev.amount):'ตาม ฿'+fmtS(ev.amount));
+      feed(st,ev,'🎲',nameOf(st,ev.by)+(isRaise?' ขึ้นเดิมพันเป็น ':' ตาม ')+'฿'+fmtS(ev.amount)+
+        (cost!==ev.amount?' (จ่ายเพิ่ม ฿'+fmtS(cost)+')':'')+' · กองรวม ฿'+fmtS(r.pot),'n');
+      afterAction(st,r,ev,s.pos);
+      break;
+    }
+    case 'FOLD': {
+      const r=st.curRound, s=seatOf(r,ev.by);
+      s.state='FOLDED'; s.acted=true; s.lastKind='FOLD';
+      r.log.push({pos:s.pos,level:s.contributed,kind:'FOLD',by:ev.by});
+      feed(st,ev,'🃏',nameOf(st,ev.by)+' หมอบการ์ด','n');
+      afterAction(st,r,ev,s.pos);
+      break;
+    }
+    case 'CHECK': {
+      const r=st.curRound, s=seatOf(r,ev.by);
+      s.acted=true; s.lastKind='CHECK';
+      r.log.push({pos:s.pos,level:s.contributed,kind:'CHECK',by:ev.by});
+      feed(st,ev,'⏭',nameOf(st,ev.by)+' ผ่าน'+(s.contributed>0?' (ลงไว้ ฿'+fmtS(s.contributed)+')':' (ลง 0)'),'n');
+      afterAction(st,r,ev,s.pos);
+      break;
+    }
+    case 'SEATS_REORDER': {
+      const r = st.curRound;
+      ev.order.forEach((mid,i)=>{ const m=st.members[mid]; if(m) m.seatNo=i+1;
+        if(r && r.status==='OPEN'){ const s=seatOf(r,mid); if(s) s.pos=i+1; } });
+      if(r && r.status==='OPEN' && r.turn && !needsAct(r,seatOf(r,r.turn)||{state:'x'}))
+        r.turn = nextTurn(r, 0);
+      feed(st,ev,'🔀','Admin จัดลำดับที่นั่งใหม่','n');
+      break;
+    }
+    case 'ROUND_LOCK': st.curRound.status='LOCKED'; feed(st,ev,'🔒','ปิดรับลงเงิน รอบที่ '+st.curRound.index,'n'); break;
+    case 'ROUND_UNLOCK': st.curRound.status='OPEN'; feed(st,ev,'🔓','เปิดรับลงเงินอีกครั้ง','n'); break;
+    case 'ROUND_VOID': {
+      const r=st.curRound;
+      r.seats.forEach(s=>{
+        const back = (s.contributed||0) + (s.ante||0);      // คืนทั้งกองกลางและเงินเดิมพัน
+        if(back>0){ const w=st.wallets[s.memberId];
+          w.balance+=back; w.totalBet-=back; r.pot-=back;
+          pushTx(st,{...ev,roundId:r.id},'UNBET','POT:'+r.id,'W:'+s.memberId,back,'ยกเลิกรอบ'); }
+        s.contributed=0; s.ante=0; s.tier=null;
+        s.state='IN'; s.acted=false; s.lastKind=null; });
+      r.currentBet=0; r.tiers=[]; r.log=[]; r.status='VOIDED'; r.turn=null; r.complete=false;
+      feed(st,ev,'✖','ยกเลิกรอบที่ '+r.index+' คืนเงินทุกคนแล้ว','y');
+      break;
+    }
+    case 'PAYOUT': {
+      const r=st.curRound;
+      ev.winners.forEach(wn=>{ if(wn.amount<=0) return;
+        const w=ensureWallet(st,wn.memberId);
+        w.balance+=wn.amount; w.totalWon+=wn.amount; r.pot-=wn.amount;
+        pushTx(st,{...ev,roundId:r.id},'PAYOUT','POT:'+r.id,'W:'+wn.memberId,wn.amount,'');
+      });
+      r.winners=ev.winners.filter(w=>w.amount>0); r.status='SETTLED'; r.settledAt=ev.at;
+      // 🏆 คนที่ได้เงินมากสุดรอบนี้ = ผู้เริ่มของรอบถัดไป
+      if(r.winners.length){
+        st.lastWinnerId = r.winners.slice().sort((a,b)=>b.amount-a.amount)[0].memberId;
+      }
+      const names = r.winners.map(w=>nameOf(st,w.memberId)+' ฿'+fmtS(w.amount)).join(' · ');
+      feed(st,ev,'🏆','จบรอบที่ '+r.index+(names?' — '+names:' (ไม่มีเงินในกอง)'),'g');
+      break;
+    }
+    case 'SEATS_SET': st.room.maxSeats=ev.n; break;
+    case 'MEMBER_REMOVED': {
+      const m=st.members[ev.mid]; if(m){ m.status='LEFT'; m.seatNo=null; m.role='SPECTATOR'; }
+      if(st.curRound&&st.curRound.status==='OPEN'){ const s=seatOf(st.curRound,ev.mid); if(s&&s.state==='IN') s.state='SITTING_OUT'; }
+      feed(st,ev,'🚪',(m?m.name:'ผู้เล่น')+' ออกจากวง','n');
+      break;
+    }
+    case 'SETTINGS_SET': Object.assign(st.room.settings, ev.settings); if(ev.roomName) st.room.name=ev.roomName; break;
+    case 'ROOM_CLOSED': st.room.status='CLOSED'; st.room.closedAt=ev.at; feed(st,ev,'🏁','ปิดห้องแล้ว','n'); break;
+    case 'REVERSAL': {
+      const orig = st.txs.find(t=>t.id===ev.txId || t.seq===ev.seqNo);
+      if(!orig) break;
+      const mv=(acc,delta)=>{ if(acc==='BANK'){ if(delta>0) st.bank.issued+=delta; else st.bank.returned+= -delta; }
+        else if(acc.startsWith('W:')){ ensureWallet(st,acc.slice(2)).balance+=delta; }
+        else if(acc.startsWith('POT:')&&st.curRound){ st.curRound.pot+=delta; } };
+      mv(orig.from, orig.amount); mv(orig.to, -orig.amount);
+      pushTx(st,ev,'REVERSAL',orig.to,orig.from,orig.amount,'กลับรายการ #'+orig.seq+' — '+(ev.reason||''));
+      feed(st,ev,'↩️','กลับรายการ #'+orig.seq+' ฿'+fmtS(orig.amount)+' — '+(ev.reason||''),'y');
+      break;
+    }
+  }
+}
+
+function reduce(events){
+  const st = blankState();
+  st.rejected = [];
+  for(const ev of events){
+    const err = validate(st,ev);
+    if(err){ st.rejected.push({ev,err}); continue; }
+    try{ apply(st,ev); }catch(e){ st.rejected.push({ev,err:'apply error: '+e.message}); }
+  }
+  // invariant I-1
+  const lhs = sumWallets(st)+potNow(st), rhs = netIssued(st);
+  st.broken = (lhs!==rhs) ? {lhs,rhs,diff:lhs-rhs} : null;
+  return st;
+}
+
+/* ============================================================
+   STORE — ชั้นซิงก์
+   ============================================================ */
+const Store = {
+  mode:'local', code:null, events:[], bc:null, sb:null, chan:null, onChange:null, online:false,
+  key(){ return 'pk:room:'+this.code; },
+
+  async open(code, mode, cfg){
+    this.close(); this.code=code; this.mode=mode||'local'; this.events=[];
+    if(this.mode==='local'){
+      try{ this.events = JSON.parse(LS.get(this.key())||'[]'); }catch(e){ this.events=[]; }
+      this.bc = safeChannel('pk:'+code);
+      this.bc.onmessage = () => { try{ this.events = JSON.parse(LS.get(this.key())||'[]'); }catch(e){} this.onChange && this.onChange(); };
+      this.online = true;
+      this.onChange && this.onChange();
+      return;
+    }
+    /* ---- Supabase ---- */
+    this.sb = await getSupabase(cfg);
+    const {data,error} = await this.sb.from(SB_TABLE).select('event').eq('room_code',code).order('id',{ascending:true});
+    if(error) throw new Error('อ่านข้อมูลห้องไม่ได้: '+error.message);
+    this.events = (data||[]).map(r=>r.event);
+    this.chan = this.sb.channel('pk-'+code)
+      .on('postgres_changes',
+          {event:'INSERT',schema:'public',table:SB_TABLE,filter:'room_code=eq.'+code},
+          payload => {
+            const v = payload.new && payload.new.event; if(!v) return;
+            if(this.events.some(e=>e.id===v.id)) return;      // กัน echo ของตัวเอง
+            this.events.push(v); this.onChange && this.onChange();
+          })
+      .subscribe(st => { this.online = (st==='SUBSCRIBED'); render(); });
+    this.onChange && this.onChange();
+  },
+
+  async append(ev){
+    ev.id = ev.id || uid(); ev.at = ev.at || nowT(); ev.by = ev.by || me.id;
+    if(this.mode==='local'){
+      let arr=[]; try{ arr = JSON.parse(LS.get(this.key())||'[]'); }catch(e){}
+      arr.push(ev); LS.set(this.key(), JSON.stringify(arr));
+      this.events = arr;
+      const idx = JSON.parse(LS.get('pk:rooms')||'[]');
+      if(!idx.includes(this.code)){ idx.push(this.code); LS.set('pk:rooms',JSON.stringify(idx)); }
+      this.bc && this.bc.postMessage('u');
+      this.onChange && this.onChange();
+      return;
+    }
+    this.events.push(ev);                    // แสดงผลทันที ไม่รอ network
+    this.onChange && this.onChange();
+    const {error} = await this.sb.from(SB_TABLE).insert({room_code:this.code, event:ev});
+    if(error){
+      this.events = this.events.filter(e=>e.id!==ev.id);   // ส่งไม่สำเร็จ → ย้อนกลับ
+      this.onChange && this.onChange();
+      toast('ส่งข้อมูลไม่สำเร็จ: '+error.message,'r');
+      throw error;
+    }
+  },
+  close(){
+    if(this.bc){ this.bc.close(); this.bc=null; }
+    if(this.chan && this.sb){ this.sb.removeChannel(this.chan); this.chan=null; }
+    this.online=false;
+  }
+};
+
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('โหลดไม่สำเร็จ: '+src)); document.head.appendChild(s); }); }
+let _sbClient = null;
+async function getSupabase(cfg){
+  cfg = cfg || sbCfg();
+  if(!cfg || !cfg.url || !cfg.key) throw new Error('ยังไม่ได้ตั้งค่า Supabase');
+  if(!window.supabase) await loadScript(SB_CDN);
+  if(!_sbClient) _sbClient = window.supabase.createClient(cfg.url, cfg.key, {realtime:{params:{eventsPerSecond:20}}});
+  return _sbClient;
+}
+/** อ่าน config: ค่าที่ฝังไว้ในไฟล์ (ตอน deploy) ก่อน แล้วค่อยดูที่ผู้ใช้กรอกเอง */
+function sbCfg(){
+  if(SUPABASE_URL && SUPABASE_ANON_KEY) return {url:SUPABASE_URL, key:SUPABASE_ANON_KEY, baked:true};
+  try{ const c = JSON.parse(LS.get('pk:sb')||'null'); return (c&&c.url&&c.key)?c:null; }catch(e){ return null; }
+}
+
+/* ============================================================
+   COMMAND — validate ฝั่ง client ก่อนส่ง เพื่อโชว์ error ทันที
+   ============================================================ */
+let S = blankState();          // state ปัจจุบัน
+let UI = { screen:'landing', tab:'control', modal:null, sel:null, form:{}, seen:0, theme:'dark' };
+
+async function cmd(ev){
+  ev.by = ev.by || me.id;
+  const err = validate(S, {...ev, id:'probe', at:nowT()});
+  if(err){ toast(err,'r'); return false; }
+  await Store.append(ev);
+  return true;
+}
+
+function refresh(){
+  const prev = S;
+  S = reduce(Store.events);
+  // แจ้งเตือนสิ่งใหม่ที่เกิดขึ้นหลังจากที่เราเห็นล่าสุด
+  if(prev.feed && S.feed.length>prev.feed.length && UI.screen!=='landing'){
+    S.feed.slice(prev.feed.length).forEach(f=>{ if(f.kind!=='silent') toast(f.icon+'  '+f.text, f.kind==='g'?'g':f.kind==='y'?'y':''); });
+  }
+  render();
+}
+Store.onChange = refresh;
+
+/* ============================================================
+   HELPERS สำหรับ view
+   ============================================================ */
+const meM = () => S.members[me.id] || null;
+const isAdmin = () => { const m=meM(); return !!m && (m.role==='ADMIN'||m.role==='CO_ADMIN'); };
+const isPlayer = () => { const m=meM(); return !!m && m.status==='PLAYING'; };
+const myWallet = () => S.wallets[me.id] || {balance:0,issuedIn:0,returnedOut:0};
+const pendingForAdmin = () => Object.values(S.requests).filter(r=>r.status==='PENDING'&&r.approver==='ADMIN');
+const pendingForMe = () => Object.values(S.requests).filter(r=>r.status==='PENDING'&&r.approver===me.id);
+const playersList = () => Object.values(S.members).filter(m=>m.status==='PLAYING').sort((a,b)=>a.seatNo-b.seatNo);
+const profitOf = mid => {
+  const w = S.wallets[mid]||{balance:0,issuedIn:0,returnedOut:0};
+  const r = S.curRound && S.curRound.status!=='SETTLED' && S.curRound.status!=='VOIDED' ? S.curRound : null;
+  const seat = r ? seatOf(r,mid) : null;
+  const inPot = seat ? (seat.contributed||0)+(seat.ante||0) : 0;   // เงินที่ยังค้างในกองถือเป็นของเจ้าตัวไว้ก่อน
+  return w.balance + inPot - (w.issuedIn - w.returnedOut);
+};
+
+function toast(text, kind){
+  const el = document.createElement('div');
+  el.className = 'toast '+(kind||'');
+  el.textContent = text;
+  $('#toasts').appendChild(el);
+  setTimeout(()=>{ el.style.transition='opacity .3s'; el.style.opacity='0'; setTimeout(()=>el.remove(),320); }, 2600);
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function render(){
+  const app = $('#app');
+  let html='';
+  if(UI.screen==='landing') html = vLanding();
+  else if(UI.screen==='create') html = vCreate();
+  else if(UI.screen==='join') html = vJoin();
+  else if(!S.room) html = vLanding();
+  else if(S.room.status==='CLOSED' && UI.screen!=='history' && UI.screen!=='settle') html = vClosed();
+  else if(S.broken) html = vBroken();
+  else html = vRoom();
+  app.innerHTML = html;
+  renderModal();
+}
+
+/* ---------- landing ---------- */
+function vLanding(){
+  const rooms = JSON.parse(LS.get('pk:rooms')||'[]');
+  return `
+  <div class="hdr"><b>ระบบนับเงินในวงเล่น</b><span class="sp"></span>
+    <button class="pill" data-act="theme">${UI.theme==='dark'?'🌙':'☀️'}</button></div>
+  <div class="body">
+    <div class="card col">
+      <div class="lbl">ชื่อของคุณ</div>
+      <input id="myname" placeholder="เช่น สมชาย" value="${esc(me.name)}" maxlength="16">
+      <div class="cap">ชื่อนี้จะแสดงให้ทุกคนในห้องเห็น</div>
+    </div>
+    <button class="btn big" data-act="goCreate">🏠 สร้างห้องใหม่ (คุณเป็น Admin)</button>
+    <button class="btn big sec" data-act="goJoin">🚪 เข้าห้องด้วยรหัส</button>
+    ${rooms.length?`<div class="lbl" style="margin-top:6px">ห้องในเครื่องนี้</div>
+      <div class="col">${rooms.slice().reverse().map(c=>`
+        <button class="lrow" data-act="openRoom" data-code="${c}" style="text-align:left">
+          <span class="av2">🏠</span><span><b style="font:600 14px/1.2 var(--f)">${c}</b><br><span class="cap">แตะเพื่อเข้า</span></span>
+          <span class="sp"></span><span class="mut">›</span></button>`).join('')}</div>`:''}
+    <div class="card col" style="margin-top:6px">
+      <div class="row"><b class="h2">โหมดการเชื่อมต่อ</b><span class="sp"></span>
+        <span class="pill">${Store.mode==='cloud'?'☁️ ข้ามเครื่อง':'💻 เครื่องนี้'}</span></div>
+      <div class="cap">• <b>เครื่องนี้</b> — เล่นข้ามแท็บ/หน้าต่างในเครื่องเดียวได้ทันที ไม่ต้องตั้งค่าอะไร<br>
+      • <b>ข้ามเครื่อง</b> — ต่อ Firebase ฟรี แล้วทุกคนเข้าห้องเดียวกันจากมือถือของตัวเองได้</div>
+      <button class="btn sec sm" data-act="cloudSetup" style="width:100%">⚙️ ตั้งค่าการเชื่อมต่อข้ามเครื่อง</button>
+    </div>
+  </div>`;
+}
+
+function vCreate(){
+  const f = UI.form;
+  return `
+  <div class="hdr"><button data-act="back">‹</button><b>สร้างห้องใหม่</b></div>
+  <div class="body">
+    <div class="card col"><div class="lbl">ชื่อห้อง</div>
+      <input id="f_name" placeholder="เช่น วงเสาร์เย็น" value="${esc(f.name||'')}"></div>
+    <div class="card col"><div class="lbl">จำนวนผู้เล่น (ที่นั่ง)</div>
+      <div class="row">
+        <button class="btn sec sm" data-act="seats" data-d="-1" style="width:54px;height:46px">−</button>
+        <div style="flex:1;text-align:center" class="money-l num">${f.seats||5}</div>
+        <button class="btn sec sm" data-act="seats" data-d="1" style="width:54px;height:46px">+</button>
+      </div><div class="cap">เพิ่ม/ลดภายหลังได้</div></div>
+    <div class="card col"><div class="lbl">เงินเริ่มต้นต่อคน</div>
+      <input id="f_start" inputmode="decimal" value="${f.start??1000}">
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        ${[500,1000,2000,5000].map(v=>`<button class="btn sec sm" data-act="setStart" data-v="${v}">฿${v.toLocaleString()}</button>`).join('')}
+      </div>
+      <div class="ban i">💡 ถ้าเข้าครบ ${f.seats||5} คน จะเบิกจาก BANK รวม ฿${(((f.start??1000))*(f.seats||5)).toLocaleString()}</div>
+    </div>
+    <div class="card col"><div class="lbl">ลงเงินกองกลาง ต่อคน ต่อรอบ (ante)</div>
+      <input id="f_ante" inputmode="decimal" value="${f.ante??10}">
+      <div class="row" style="gap:6px;flex-wrap:wrap">
+        ${[0,5,10,20,50].map(v=>`<button class="btn sec sm" data-act="setAnte" data-v="${v}">${v===0?'ไม่มี':'฿'+v}</button>`).join('')}
+      </div>
+      <div class="cap">ทุกคนต้องลงเงินกองกลางก่อน แล้วระบบจะเริ่มเดิมพันที่ผู้ชนะรอบก่อน (รอบแรกเริ่มที่คนตำแหน่งที่ 1) · ใส่ 0 = ข้ามขั้นตอนนี้</div>
+    </div>
+    <div class="card col"><div class="lbl">ปุ่มชิพลงเงิน (คั่นด้วยจุลภาค)</div>
+      <input id="f_chips" value="${esc(f.chips||'5,10,20,30,50,100')}">
+      <label class="row" style="margin-top:4px"><input type="checkbox" id="f_loans" ${f.loans!==false?'checked':''} style="width:auto"> <span class="lbl">เปิดให้ยืมเงินกันได้</span></label>
+      <label class="row"><input type="checkbox" id="f_strict" ${f.strict!==false?'checked':''} style="width:auto"> <span class="lbl">บังคับเรียงตา (ต้องรอถึงตาตัวเอง)</span></label>
+      <label class="row"><input type="checkbox" id="f_autoclose" ${f.autoClose!==false?'checked':''} style="width:auto"> <span class="lbl">ปิดรอบอัตโนมัติเมื่อทุกคนลงเท่ากัน</span></label>
+      <label class="row"><input type="checkbox" id="f_auto" ${f.autoGrant!==false?'checked':''} style="width:auto"> <span class="lbl">อนุมัติเข้าเล่นแล้วเติมเงินเริ่มต้นให้อัตโนมัติ</span></label>
+    </div>
+  </div>
+  <div class="foot"><button class="btn big" data-act="doCreate">สร้างห้อง</button></div>`;
+}
+
+function vJoin(){
+  return `
+  <div class="hdr"><button data-act="back">‹</button><b>เข้าห้อง</b></div>
+  <div class="body">
+    <div class="card col"><div class="lbl">รหัสห้อง 6 หลัก</div>
+      <input id="j_code" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;letter-spacing:6px;text-align:center;font-size:24px;font-weight:700">
+      <div class="cap">ขอรหัสจาก Admin ของวง</div></div>
+    <div class="ban i">👁 เข้าไปแล้วคุณจะเป็น <b>ผู้ชม</b> ก่อน ต้องกด "ขอเข้าเล่น" แล้วให้ Admin อนุมัติจึงจะลงเงินได้</div>
+  </div>
+  <div class="foot"><button class="btn big" data-act="doJoin">เข้าห้อง</button></div>`;
+}
+
+/* ---------- room shell ---------- */
+function vRoom(){
+  const scr = UI.screen;
+  let body='';
+  if(scr==='approvals') body = vApprovals();
+  else if(scr==='players') body = vPlayers();
+  else if(scr==='history') body = vHistory();
+  else if(scr==='settings') body = vSettings();
+  else if(scr==='payout') return vPayout();
+  else if(scr==='settle') return vSettle();
+  else if(scr==='wallet') body = vWallet();
+  else body = isAdmin() ? vAdminHome() : (isPlayer() ? vPlayerHome() : vSpectator());
+  return vHeader() + `<div class="body">${body}</div>` + vFooterAction() + vNav();
+}
+
+function vHeader(){
+  const n = pendingForAdmin().length + pendingForMe().length;
+  return `<div class="hdr">
+    <button data-act="leave">‹</button>
+    <b>${esc(S.room.name)}</b>
+    <span class="code">${S.room.code}</span>
+    <span class="sp"></span>
+    <span class="pill">👥 ${Object.values(S.members).filter(m=>m.status!=='LEFT').length}</span>
+    ${n?`<span class="pill pend">🔔 ${n}</span>`:''}
+  </div>`;
+}
+
+function vNav(){
+  const items = isAdmin()
+    ? [['home','🏠','ห้อง'],['approvals','✅','อนุมัติ'],['players','👥','ผู้เล่น'],['history','🕘','ประวัติ'],['settings','⚙️','ตั้งค่า']]
+    : isPlayer()
+      ? [['home','🏠','ห้อง'],['wallet','💰','กระเป๋า'],['history','🕘','ประวัติ'],['settings','⚙️','อื่นๆ']]
+      : [['home','🏠','ห้อง'],['history','🕘','ประวัติ'],['settings','⚙️','อื่นๆ']];
+  const badge = pendingForAdmin().length;
+  return `<div class="nav" style="grid-template-columns:repeat(${items.length},1fr)">
+    ${items.map(([k,i,l])=>`<button data-act="nav" data-s="${k}" class="${UI.screen===k?'on':''}">
+      <span class="i">${i}</span>${l}${k==='approvals'&&badge?`<span class="dot">${badge}</span>`:''}</button>`).join('')}
+  </div>`;
+}
+
+/* ---------- ring row (แกนกลางของ v2) ---------- */
+function ringRow(r, opts){
+  opts = opts||{};
+  if(!r) return '';
+  const seats = r.seats.filter(s=>s.state!=='SITTING_OUT' || opts.showOut);
+  const ord = seats.slice().sort((a,b)=>a.pos-b.pos);
+  return `<div class="rings">${ord.map(s=>{
+    const m = S.members[s.memberId]; if(!m) return '';
+    const isMe = s.memberId===me.id;
+    const isTurn = r.turn===s.memberId && r.status==='OPEN';
+    let ring='var(--border)', badge='', bstyle='', cls='';
+    if(s.state==='FOLDED'){ cls='fold'; badge='หมอบ'; }
+    else if(s.state==='SITTING_OUT'){ cls='fold'; badge='พัก'; }
+    else if(r.phase==='ANTE'){
+      if(s.ante>0){ ring='var(--pot)'; badge='฿'+fmtS(s.ante); bstyle='background:var(--pot);color:#241705;border-color:var(--pot)'; }
+      else { badge='รอลงกอง'; if(s.memberId===r.starterId) ring='var(--pending)'; }
+    }
+    else if(s.contributed>0){
+      const t=r.tiers[s.tier]||{color:'var(--border)',ink:'#000'}; ring=t.color;
+      badge='฿'+fmtS(s.contributed); bstyle=`background:${t.color};color:${t.ink};border-color:${t.color}`;
+      if(needsAct(r,s)) badge += ' ↑';                    // ยังต้องตามเพิ่ม
+    }
+    else if(s.acted && !needsAct(r,s)){ badge='ผ่าน'; }
+    else { badge = isTurn?(isMe?'ตาคุณ':'ตานี้'):'รอลง'; if(m.role==='ADMIN'||m.role==='CO_ADMIN') ring='var(--admin)'; }
+    if(isMe && s.state==='IN') cls+=' me';
+    if(isTurn) cls+=' turn';
+    const face = (m.role==='ADMIN'||m.role==='CO_ADMIN') ? '👑' : (isMe?'คุณ':esc(initials(m.name)));
+    return `<div class="pr ${cls}">
+      <span class="pos">${s.pos}</span>
+      <span class="av" style="border-color:${ring}${isTurn?';box-shadow:0 0 0 3px rgba(245,178,61,.5)':''}">${face}</span>
+      <span class="nm">${esc(m.name)}</span>
+      <span class="bg" style="${bstyle}">${badge}</span>
+    </div>`;
+  }).join('')}</div>`;
+}
+function turnBanner(r){
+  if(!r || r.status!=='OPEN') return '';
+  if(r.phase==='ANTE'){
+    const left = r.seats.filter(x=>x.state==='IN'&&x.ante<=0);
+    return `<div class="ban i">🪙 ลงเงินกองกลาง คนละ ฿${fmtS(r.anteAmount)} — เหลืออีก ${left.length} คน
+      <span class="sp"></span><span class="cap">ครบแล้วเริ่มที่ ${esc(nameOf(S,r.starterId))}</span></div>`;
+  }
+  if(r.complete) return `<div class="ban g">✅ ครบตาแล้ว — ทุกคนลงเท่ากันที่ ฿${fmtS(r.currentBet)}${S.room.settings.autoClose?'':' · รอ Admin ปิดรอบ'}</div>`;
+  if(!r.turn) return '';
+  const mine = r.turn===me.id;
+  const s = seatOf(r,r.turn);
+  const need = Math.max(0, r.currentBet-(s?s.contributed:0));
+  return `<div class="ban ${mine?'y pulse':'n'}">
+    ${mine?'👉 ตาคุณแล้ว':'⏳ ตาของ '+esc(nameOf(S,r.turn))}
+    <span class="sp"></span>
+    <span class="num">${need>0?'ต้องตามเพิ่ม ฿'+fmtS(need):'ผ่านได้ (ยังไม่มีใครลง)'}</span></div>`;
+}
+function tierLegend(r){
+  if(!r || !r.tiers.length) return '';
+  return `<div class="legend">
+    ${r.tiers.map((t,i)=>`<span><i class="sw" style="background:${t.color}"></i>฿${fmtS(t.amount)}${i===0?' (คนแรก)':''}</span>`).join('')}
+    <span><i class="sw" style="border:1.5px dashed #66717F"></i>หมอบการ์ด</span>
+  </div>`;
+}
+function potCard(r){
+  if(!r) return `<div class="card"><div class="empty"><span class="ic">🪙</span><b>ยังไม่มีรอบที่เปิด</b><span class="cap">รอ Admin กดเปิดรอบ</span></div></div>`;
+  const c = {bet:0,folded:0,wait:0,checked:0};
+  r.seats.forEach(s=>{ if(s.state==='FOLDED')c.folded++;
+    else if(s.state==='SITTING_OUT'){}
+    else if(needsAct(r,s))c.wait++;
+    else if(s.contributed>0)c.bet++; else c.checked++; });
+  const note = actionNotation(r);
+  return `<div class="card col" style="background:var(--pot-bg);border-color:var(--pot);gap:8px">
+    <div class="row">
+      <div class="col" style="gap:4px">
+        <span class="lbl pot">กองกลาง · รอบที่ ${r.index}</span>
+        <span class="money pot num">฿${fmtS(r.pot)}</span>
+      </div>
+      <div class="sp"></div>
+      <div class="col" style="gap:4px;text-align:right">
+        <span class="h2">ตามครบ ${c.bet} คน</span>
+        <span class="cap">หมอบ ${c.folded} · ผ่าน ${c.checked} · ยังต้องลง ${c.wait}</span>
+        ${r.currentBet>0?`<span class="cap pot num">เดิมพันล่าสุด ฿${fmtS(r.currentBet)}</span>`:''}
+      </div>
+    </div>
+    ${note?`<div class="notation num">${esc(note)}</div>`:''}
+  </div>`;
+}
+
+/* ---------- player home ---------- */
+function vPlayerHome(){ return betPanel(false); }
+
+function betPanel(adminMode){
+  const r = S.curRound, w = myWallet(), s = r?seatOf(r,me.id):null;
+  const chips = S.room.settings.chips;
+  const sel = UI.form.betSel ?? null;
+  const cur = r?r.currentBet:0;
+  const myPend = pendingForMe();
+  let head = '';
+  if(r && r.status==='OPEN') head = `<div class="ban g">🟢 รอบที่ ${r.index} · เปิดรับลงเงิน${cur?` · เดิมพันล่าสุด ฿${fmtS(cur)}`:''}</div>`;
+  else if(r && r.status==='LOCKED') head = `<div class="ban n">🔒 ปิดรับลงเงินแล้ว — รอ Admin จ่ายเงิน</div>`;
+  else if(r && r.status==='SETTLED') head = `<div class="ban n">🏁 รอบที่ ${r.index} จบแล้ว — รอ Admin เปิดรอบใหม่</div>`;
+
+  /* ───── ช่วงลงเงินกองกลาง (ante) ───── */
+  if(r && r.status==='OPEN' && r.phase==='ANTE'){
+    const need = r.anteAmount, paid = s?s.ante>0:false;
+    const left = r.seats.filter(x=>x.state==='IN'&&x.ante<=0);
+    return `
+    ${myPend.length?`<div class="ban y pulse" data-act="openPend">⚠ มี ${myPend.length} คำขอรอคุณตอบ — แตะเพื่อดู</div>`:''}
+    ${adminMode?`<div class="ban a">👑 คุณกำลังเล่นในวงด้วย — ยอดของคุณถูกนับในสมการเงินเหมือนผู้เล่นทุกคน</div>`:''}
+    <div class="ban i">🪙 รอบที่ ${r.index} · <b>ลงเงินกองกลาง</b> คนละ ฿${fmtS(need)}</div>
+    ${ringRow(r)}
+    ${potCard(r)}
+    <div class="card col">
+      <div class="row"><span class="lbl">กระเป๋าของ${adminMode?'คุณ (Admin)':'ฉัน'}</span><span class="sp"></span>
+        <span class="money-l num">฿${fmt(w.balance)}</span></div>
+      <div class="cap">ยังไม่ลง ${left.length} คน${left.length?': '+left.map(x=>esc(nameOf(S,x.memberId))).join(' · '):''}</div>
+      ${r.starterId?`<div class="cap">ลงครบแล้วจะเริ่มเดิมพันที่ <b>${esc(nameOf(S,r.starterId))}</b>${S.lastWinnerId===r.starterId?' (ผู้ชนะรอบก่อน)':''}</div>`:''}
+    </div>
+    ${paid
+      ? `<div class="ban g">✅ คุณลงกองกลางแล้ว ฿${fmtS(s.ante)} — รออีก ${left.length} คน</div>`
+      : s && s.state==='SITTING_OUT'
+      ? `<div class="ban n">💤 คุณพักรอบนี้</div>`
+      : `<div class="g2">
+           <button class="btn sec" data-act="anteSitout">ไม่ลง (พักรอบนี้)</button>
+           <button class="btn" data-act="ante" ${w.balance>=need?'':'disabled'}>
+             ${w.balance>=need?'ลงกองกลาง ฿'+fmtS(need):'เงินไม่พอ (ต้องมี ฿'+fmtS(need)+')'}
+             ${w.balance>=need?`<small>คงเหลือ ฿${fmtS(w.balance-need)}</small>`:''}</button>
+         </div>`}
+    `;
+  }
+
+  const myTurn = r && r.status==='OPEN' && (!S.room.settings.strict || r.turn===me.id);
+  const canAct = r && r.status==='OPEN' && s && s.state==='IN' && needsAct(r,s) && myTurn;
+  const mineIn = s?s.contributed:0;
+
+  // แถบขึ้นเดิมพัน
+  let raise='';
+  if(canAct && sel!==null && sel>cur){
+    const ti = r.tiers.findIndex(x=>x.amount===sel);
+    const col = ti>=0?r.tiers[ti].color:TIER_COLORS[r.tiers.length%TIER_COLORS.length];
+    raise = `<div class="ban i" style="border-color:${col};color:${col};background:var(--info-bg);flex-direction:column;align-items:flex-start;gap:3px">
+      <b>คุณกำลังขึ้นเดิมพันเป็น ฿${fmtS(sel)} — ได้สีใหม่</b>
+      <span class="cap">ทุกคนที่ยังไม่หมอบต้องกลับมาตามให้ถึง ฿${fmtS(sel)} หรือหมอบ</span></div>`;
+  }
+
+  const chipHtml = chips.map(cB=>{
+    const v = B(cB);
+    const locked = !canAct || v<cur || v<=mineIn;
+    const tIdx = r?r.tiers.findIndex(x=>x.amount===v):-1;
+    let stl='';
+    if(!locked && tIdx>=0) stl=`background:${r.tiers[tIdx].color};border-color:${r.tiers[tIdx].color};color:${r.tiers[tIdx].ink}`;
+    else if(!locked && sel===v){ const c=TIER_COLORS[(r?r.tiers.length:0)%TIER_COLORS.length]; stl=`background:${c};border-color:${c};color:${TIER_INK[(r?r.tiers.length:0)%TIER_INK.length]}`; }
+    return `<button class="chip ${locked?'lock':''} ${sel===v?'on':''}" data-act="${locked?'lockedChip':'pickChip'}" data-v="${v}" style="${stl}">${cB}${locked?'<i>🔒</i>':''}</button>`;
+  }).join('');
+  const canCheck = canAct && mineIn===cur;
+
+  return `
+  ${myPend.length?`<div class="ban y pulse" data-act="openPend">⚠ มี ${myPend.length} คำขอรอคุณตอบ — แตะเพื่อดู</div>`:''}
+  ${adminMode?`<div class="ban a">👑 คุณกำลังเล่นในวงด้วย — ยอดของคุณถูกนับในสมการเงินเหมือนผู้เล่นทุกคน</div>`:''}
+  ${head}
+  ${ringRow(r)}
+  ${turnBanner(r)}
+  ${tierLegend(r)}
+  ${raise}
+  ${potCard(r)}
+  <div class="card">
+    <div class="row">
+      <div class="col" style="gap:3px">
+        <span class="lbl">กระเป๋าของ${adminMode?'คุณ (Admin)':'ฉัน'}</span>
+        <span class="money num">฿${fmt(w.balance)}</span>
+      </div>
+      <div class="sp"></div>
+      ${sel!==null&&canAct
+        ? `<div class="col" style="gap:3px;text-align:right"><span class="cap">คงเหลือหลังลง</span>
+             <span class="money-s num ${w.balance-sel<0?'out':''}">฿${fmtS(Math.max(0,w.balance-sel))}</span></div>`
+        : `<div class="row" style="gap:7px">
+             <button class="btn sec sm" data-act="modal" data-m="topup">เติมเงิน</button>
+             <button class="btn sec sm" data-act="modal" data-m="transfer">โอน</button>
+             <button class="btn sec sm" data-act="modal" data-m="more">⋯</button></div>`}
+    </div>
+  </div>
+  ${s&&s.state==='FOLDED'?`<div class="ban n">🃏 คุณหมอบรอบนี้แล้ว — รอผลรอบ</div>`
+   :s&&s.state==='SITTING_OUT'?`<div class="ban n">💤 คุณพักรอบนี้ — ลงได้ในรอบถัดไป</div>`
+   :s&&r&&r.status==='OPEN'&&!needsAct(r,s)?`<div class="ban g">✅ คุณตามครบแล้วที่ ฿${fmtS(s.contributed)} — รอคนอื่น</div>`
+   :`
+  <div class="col" style="gap:7px">
+    <div class="row"><span class="lbl">เลือกยอดรวมของรอบ</span><span class="sp"></span>
+      ${cur>0?`<span class="lbl pot num">ต้องตามถึง ฿${fmtS(cur)}${mineIn>0?' · คุณลงไว้ ฿'+fmtS(mineIn):''}</span>`:'<span class="cap">คุณจะเป็นคนแรกของรอบ</span>'}</div>
+    <div class="chips">${chipHtml}</div>
+    <div class="g2">
+      <button class="btn sec sm" style="width:100%;height:44px" data-act="${canCheck?'check':'lockedCheck'}" ${canCheck?'':'disabled'}>
+        ${mineIn>0?'ผ่าน (ไม่เพิ่ม)':'ลง 0 บาท (ผ่าน)'}${canCheck?'':' 🔒'}</button>
+      <button class="btn sec sm" style="width:100%;height:44px" data-act="modal" data-m="custom" ${canAct?'':'disabled'}>⌨ ใส่ยอดเอง</button>
+    </div>
+    ${canAct&&!canCheck?`<div class="cap">ตัวเลขบนชิพคือ <b>ยอดรวมของรอบ</b> — คุณลงไว้ ฿${fmtS(mineIn)} กด ฿${fmtS(cur)} = จ่ายเพิ่ม ฿${fmtS(cur-mineIn)}</div>`:''}
+    ${!myTurn&&r&&r.status==='OPEN'?`<div class="cap">รอถึงตาคุณก่อน (โหมดบังคับเรียงตา)</div>`:''}
+  </div>`}
+  `;
+}
+
+function vFooterAction(){
+  if(UI.screen!=='home') return '';
+  if(isAdmin() && UI.tab==='control') return '';
+  const r = S.curRound, w = myWallet();
+  const s = r?seatOf(r,me.id):null;
+  if(!isPlayer() || !r || r.status!=='OPEN' || r.phase==='ANTE' || !s || s.state!=='IN' || !needsAct(r,s)) return '';
+  if(S.room.settings.strict && r.turn && r.turn!==me.id)
+    return `<div class="foot"><button class="btn big" disabled>รอตาคุณ… (ตาของ ${esc(nameOf(S,r.turn))})</button></div>`;
+  const sel = UI.form.betSel ?? null, cur = r.currentBet, mine = s.contributed;
+  const cost = sel!==null ? sel-mine : 0;
+  let main, dis=false, sub='';
+  if(sel===null){ main='เลือกยอดก่อน'; dis=true; }
+  else if(cost<=0){ main='ยอดต้องมากกว่าที่ลงไว้'; dis=true; }
+  else if(cost>w.balance){ main='เงินไม่พอ (ขาด ฿'+fmtS(cost-w.balance)+')'; dis=true; }
+  else {
+    if(cur===0) main='ลงเดิมพัน ฿'+fmtS(sel)+' (คนแรก)';
+    else if(sel===cur) main='ตาม ฿'+fmtS(sel);
+    else main='ขึ้นเป็น ฿'+fmtS(sel);
+    sub = (mine>0?'จ่ายเพิ่ม ฿'+fmtS(cost)+' · ':'')+'คงเหลือ ฿'+fmtS(w.balance-cost);
+  }
+  return `<div class="foot">
+    <button class="btn big sec" style="width:112px;flex:none" data-act="fold">หมอบการ์ด<small>ไม่เสียเงิน</small></button>
+    <button class="btn big" data-act="bet" ${dis?'disabled':''}>${main}${sub?`<small>${sub}</small>`:''}</button>
+  </div>`;
+}
+
+/* ---------- spectator ---------- */
+function vSpectator(){
+  const m = meM(), r = S.curRound;
+  const pend = m && m.status==='PENDING_JOIN';
+  const full = Object.values(S.members).filter(x=>x.status==='PLAYING'||x.status==='SITTING_OUT').length >= S.room.maxSeats;
+  return `
+  <div class="ban i">👁 คุณกำลังชมอยู่ · ยังลงเงินไม่ได้</div>
+  ${ringRow(r)}
+  ${tierLegend(r)}
+  ${potCard(r)}
+  <div class="card col">
+    <div class="lbl">ผู้เล่นในวง</div>
+    <div class="col" style="gap:6px">
+      ${playersList().map(p=>`<div class="row"><span class="av2" style="border-color:${p.color}">${p.role==='ADMIN'?'👑':esc(initials(p.name))}</span>
+        <b style="font:600 13px/1 var(--f)">${esc(p.name)}</b>${p.role==='ADMIN'?'<span class="pill">Admin</span>':''}</div>`).join('')||'<span class="cap">ยังไม่มีผู้เล่น</span>'}
+    </div>
+  </div>
+  ${pend?`<div class="ban y pulse">⏳ ส่งคำขอแล้ว — รอ Admin อนุมัติ</div>
+        <button class="btn sec" data-act="cancelJoin">ยกเลิกคำขอ</button>`
+    :full?`<div class="ban y">🪑 ที่นั่งเต็ม (${S.room.maxSeats}/${S.room.maxSeats}) — รอ Admin เพิ่มที่นั่ง</div>`
+    :`<button class="btn big" data-act="askJoin">✋ ขอเข้าเล่น</button>`}
+  `;
+}
+
+/* ---------- admin home ---------- */
+function vAdminHome(){
+  return `<div class="tabs">
+    <button class="${UI.tab==='control'?'on':''}" data-act="tab" data-t="control">👑 คุมห้อง</button>
+    <button class="${UI.tab==='play'?'on':''}" data-act="tab" data-t="play">🎮 เล่นด้วย</button>
+  </div>` + (UI.tab==='play' ? betPanel(true) : vAdminControl());
+}
+
+function vAdminControl(){
+  const r = S.curRound, ni = netIssued(S), inSys = sumWallets(S)+potNow(S);
+  const pend = pendingForAdmin();
+  const list = playersList();
+  const maxAbs = Math.max(1, ...list.map(p=>Math.abs(profitOf(p.id))));
+  let ctrl='';
+  if(!r || r.status==='SETTLED' || r.status==='VOIDED')
+    ctrl = `<button class="btn big" data-act="openRound">▶ เปิดรอบใหม่</button>`;
+  else if(r.status==='OPEN')
+    ctrl = `<div class="row"><span class="lbl">ปิดรอบอัตโนมัติเมื่อครบตา</span><span class="sp"></span>
+        <input type="checkbox" data-act="setToggle" data-k="autoClose" ${S.room.settings.autoClose?'checked':''} style="width:auto"></div>
+      <div class="g2">
+        <button class="btn ${r.complete?'':'sec'}" data-act="lockRound">🔒 ปิดรับลงเงิน</button>
+        <button class="btn sec" data-act="voidRound">✖ ยกเลิกรอบ</button>
+      </div><button class="btn gold" data-act="nav" data-s="payout">🏁 จบรอบ &amp; จ่ายเงินกองกลาง</button>`;
+  else
+    ctrl = `<div class="g2">
+        <button class="btn sec" data-act="unlockRound">🔓 เปิดรับอีกครั้ง</button>
+        <button class="btn sec" data-act="voidRound">✖ ยกเลิกรอบ</button>
+      </div><button class="btn gold big" data-act="nav" data-s="payout">🏁 จบรอบ &amp; จ่ายเงินกองกลาง</button>`;
+
+  const alone = r && r.status!=='SETTLED' && notFolded(r).length===1 && r.pot>0
+    ? (()=>{ const only=notFolded(r)[0]; return `<div class="ban y pulse">🎯 เหลือ ${esc(nameOf(S,only.memberId))} คนเดียว — จ่ายกอง ฿${fmtS(r.pot)} ทั้งหมด?
+        <button class="btn sm" style="margin-left:auto" data-act="payAlone" data-m="${only.memberId}">จ่ายเลย</button></div>`; })() : '';
+
+  return `
+  ${pend.length?`<div class="ban y pulse" data-act="nav" data-s="approvals">⚠ มีคำขอรออนุมัติ ${pend.length} รายการ <span class="sp"></span>ดู ›</div>`:''}
+  <div class="g2">
+    <div class="card col" style="gap:3px"><span class="cap">เบิกจาก BANK</span><span class="money-l num">฿${fmtS(ni)}</span></div>
+    <div class="card col" style="gap:3px"><span class="cap">เงินในระบบ</span>
+      <span class="money-l num ${inSys===ni?'in':'out'}">฿${fmtS(inSys)} ${inSys===ni?'✅':'⛔'}</span></div>
+  </div>
+  <div class="card col">
+    <div class="row"><b class="h2">ได้ / เสีย รายคน</b><span class="sp"></span><span class="cap">เทียบกับเงินที่เบิกไป</span></div>
+    <div class="col" style="gap:6px">
+      ${list.map(p=>{ const v=profitOf(p.id), pct=Math.min(50, Math.abs(v)/maxAbs*50);
+        return `<div class="row" style="gap:8px">
+          <span style="width:60px;font:600 11.5px/1.2 var(--f);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.role==='ADMIN'?'👑 ':''}${esc(p.name)}</span>
+          <span class="bar"><i class="zero"></i>${v!==0?`<i class="f" style="${v>0?`left:50%;width:${pct}%;background:var(--in);border-radius:0 3px 3px 0`:`right:50%;width:${pct}%;background:var(--out);border-radius:3px 0 0 3px`}"></i>`:''}</span>
+          <span class="num" style="width:62px;text-align:right;font:700 12px/1 var(--f);color:${v>0?'var(--in)':v<0?'var(--out)':'var(--tm)'}">${v>0?'+':''}${fmtS(v)}</span>
+        </div>`; }).join('')}
+    </div>
+  </div>
+  ${alone}
+  ${r?ringRow(r):''}
+  ${turnBanner(r)}
+  ${potCard(r)}
+  <div class="col" style="gap:8px">${ctrl}</div>
+  <div class="card col">
+    <div class="row"><b class="h2">ผู้เล่น (${list.length}/${S.room.maxSeats})</b><span class="sp"></span>
+      <button class="btn sec sm" data-act="nav" data-s="players">จัดการ ›</button></div>
+    ${list.map(p=>{ const w=S.wallets[p.id]||{balance:0}; const s=r?seatOf(r,p.id):null;
+      return `<div class="lrow"><span class="av2" style="border-color:${p.color}">${p.role==='ADMIN'?'👑':esc(initials(p.name))}</span>
+        <div class="col" style="gap:2px"><b style="font:600 13px/1 var(--f)">${esc(p.name)}</b>
+          <span class="cap">${s? (s.state==='FOLDED'?'หมอบ':s.state==='SITTING_OUT'?'พัก':s.contributed>0?'ลงรอบนี้ ฿'+fmtS(s.contributed)+(needsAct(r,s)?' (ยังต้องตาม)':''):needsAct(r,s)?'รอลง':'ผ่าน') : '—'}</span></div>
+        <span class="sp"></span><span class="money-s num">฿${fmtS(w.balance)}</span>
+        <button class="btn sec sm" data-act="modal" data-m="manage" data-mid="${p.id}">⋯</button></div>`;
+    }).join('')}
+  </div>`;
+}
+
+/* ---------- approvals ---------- */
+function vApprovals(){
+  const mine = pendingForMe(), adm = isAdmin()?pendingForAdmin():[];
+  const all = [...mine,...adm];
+  if(!all.length) return `<div class="empty"><span class="ic">✨</span><b>ไม่มีคำขอรออนุมัติ</b><span class="cap">เคลียร์หมดแล้ว</span></div>`;
+  return all.map(rq=>{
+    if(rq.type==='JOIN'){
+      const st = S.room.settings;
+      return `<div class="card col" style="border-left:4px solid var(--pending)">
+        <div class="row"><span class="pill">🪑 ขอเข้าเล่น</span></div>
+        <div class="row"><span class="av2">${esc(initials(nameOf(S,rq.to)))}</span><b class="h2">${esc(nameOf(S,rq.to))}</b></div>
+        <div class="row"><span class="lbl">เงินเริ่มต้น</span><span class="sp"></span>
+          <input id="ja_${rq.id}" value="${st.autoGrant?fmtS(st.startAmount):0}" inputmode="decimal" style="width:110px;text-align:right"></div>
+        <div class="g2"><button class="btn ghost" data-act="rejectJoin" data-mid="${rq.to}">ปฏิเสธ</button>
+          <button class="btn" data-act="approveJoin" data-mid="${rq.to}" data-rid="${rq.id}">✓ อนุมัติ</button></div>
+      </div>`;
+    }
+    if(rq.type==='TOPUP'){
+      const w = S.wallets[rq.to]||{balance:0,issuedIn:0};
+      return `<div class="card col" style="border-left:4px solid var(--pending)">
+        <div class="row"><span class="pill">💰 ขอเติมเงิน</span></div>
+        <div class="row"><span class="av2">${esc(initials(nameOf(S,rq.to)))}</span>
+          <div class="col" style="gap:2px"><b class="h2">${esc(nameOf(S,rq.to))} ขอเบิก</b>
+          <span class="money-l num">฿${fmt(rq.amount)}</span></div></div>
+        <div class="cap">ยอดตอนนี้ ฿${fmtS(w.balance)} → <b class="in">฿${fmtS(w.balance+rq.amount)}</b> · เบิกไปแล้ว ฿${fmtS(w.issuedIn)}<br>
+          เงินเบิกรวมห้อง ฿${fmtS(netIssued(S))} → <b>฿${fmtS(netIssued(S)+rq.amount)}</b></div>
+        ${rq.note?`<div class="cap">"${esc(rq.note)}"</div>`:''}
+        <div class="g2"><button class="btn ghost" data-act="rejectReq" data-rid="${rq.id}">ปฏิเสธ</button>
+          <button class="btn" data-act="approveReq" data-rid="${rq.id}">✓ อนุมัติ</button></div>
+      </div>`;
+    }
+    if(rq.type==='BORROW'){
+      const w = S.wallets[rq.from]||{balance:0};
+      return `<div class="card col" style="border-left:4px solid var(--out)">
+        <div class="row"><span class="pill">🤝 ขอยืมเงิน</span></div>
+        <b class="h2">${esc(nameOf(S,rq.to))} ขอยืมเงินคุณ</b>
+        <span class="money-l num out">฿${fmt(rq.amount)}</span>
+        <div class="ban y">⚠ คุณจะเป็นเจ้าหนี้ ฿${fmtS(rq.amount)} · กระเป๋าคุณ ฿${fmtS(w.balance)} → ฿${fmtS(w.balance-rq.amount)}</div>
+        <div class="cap">ยินยอมแล้วเงินออกทันที ไม่ต้องรอ Admin</div>
+        <div class="g2"><button class="btn ghost" data-act="rejectReq" data-rid="${rq.id}">ปฏิเสธ</button>
+          <button class="btn" data-act="approveReq" data-rid="${rq.id}">✓ ยินยอมให้ยืม</button></div>
+      </div>`;
+    }
+    return '';
+  }).join('');
+}
+
+/* ---------- payout ---------- */
+function vPayout(){
+  const r = S.curRound;
+  if(!r) { UI.screen='home'; return vRoom(); }
+  const win = UI.form.winners || {};
+  const paid = Object.values(win).reduce((a,b)=>a+b,0);
+  const left = r.pot - paid;
+  const ok = left===0;
+  const eligible = r.seats.filter(s=>s.state!=='FOLDED'&&s.state!=='SITTING_OUT');
+  return `
+  <div class="hdr"><button data-act="nav" data-s="home">‹</button><b>จ่ายเงินกองกลาง</b><span class="sp"></span><span class="pill">รอบที่ ${r.index}</span></div>
+  <div class="body">
+    <div class="card" style="background:var(--pot-bg);border-color:var(--pot);text-align:center">
+      <div class="lbl pot">กองกลางทั้งหมด</div>
+      <div class="money pot num" style="margin:6px 0">฿${fmt(r.pot)}</div>
+      <div class="cap">${r.seats.filter(s=>s.contributed>0).map(s=>`<span style="color:${(r.tiers[s.tier]||{}).color||'var(--tm)'}">●</span> ${esc(nameOf(S,s.memberId))} ${fmtS(s.contributed)}`).join(' · ')||'ไม่มีใครลงเงิน'}</div>
+    </div>
+    <div class="lbl">เลือกผู้ชนะ</div>
+    <div class="rings">
+      ${r.seats.map(s=>{ const m=S.members[s.memberId]; if(!m) return '';
+        const dis = s.state==='FOLDED'||s.state==='SITTING_OUT';
+        const on = win[s.memberId]!==undefined;
+        return `<div class="pr ${dis?'fold':''}" data-act="${dis?'foldedWin':'togWin'}" data-mid="${s.memberId}" style="cursor:pointer">
+          <span class="av ${on?'sel':''}" style="${on?'border-color:var(--pot)':''}">${on?'✓':esc(initials(m.name))}</span>
+          <span class="nm">${esc(m.name)}</span>
+          <span class="bg">${dis?(s.state==='FOLDED'?'หมอบแล้ว':'พัก'):(s.contributed?'฿'+fmtS(s.contributed):'ไม่ได้ลง')}</span></div>`;
+      }).join('')}
+    </div>
+    <div class="g2">
+      <button class="btn sec sm" style="width:100%" data-act="splitEqual">⚖ แบ่งเท่ากัน</button>
+      <button class="btn sec sm" style="width:100%" data-act="giveAll">💯 คนแรกรับทั้งกอง</button>
+    </div>
+    ${Object.keys(win).length? Object.keys(win).map(mid=>`
+      <div class="lrow"><span class="av2">${esc(initials(nameOf(S,mid)))}</span>
+        <b style="font:600 13px/1 var(--f)">${esc(nameOf(S,mid))}</b><span class="sp"></span>
+        <input class="wamt" data-mid="${mid}" value="${fmtS(win[mid])}" inputmode="decimal" style="width:104px;text-align:right;padding:8px 10px">
+        <button data-act="rmWin" data-mid="${mid}" class="mut">✕</button></div>`).join('')
+      : `<div class="cap" style="text-align:center;padding:8px">แตะที่รูปผู้เล่นด้านบนเพื่อเลือกผู้ชนะ</div>`}
+    ${eligible.length===0?'<div class="ban y">ไม่มีผู้เล่นที่มีสิทธิ์รับกอง</div>':''}
+    <div class="ban ${ok?'g':left>0?'y':'r'}">
+      <b class="num">กอง ฿${fmtS(r.pot)} · จ่าย ฿${fmtS(paid)} · ${left>=0?'เหลือ':'เกิน'} ฿${fmtS(Math.abs(left))}</b>
+      <span class="sp"></span>${ok?'✅ ยอดตรงพอดี':left>0?'⚠️ ยังจ่ายไม่ครบ':'⛔ จ่ายเกินกอง'}
+    </div>
+  </div>
+  <div class="foot"><button class="btn big gold" data-act="doPayout" ${ok?'':'disabled'}>🏁 ยืนยันจ่ายเงิน &amp; จบรอบ</button></div>`;
+}
+
+/* ---------- wallet / history / players / settings / settle ---------- */
+function vWallet(){
+  const w = myWallet();
+  const myDebts = Object.values(S.debts).filter(d=>d.status==='OPEN'&&(d.debtor===me.id||d.creditor===me.id));
+  return `
+  <div class="card col" style="align-items:center;text-align:center">
+    <span class="lbl">กระเป๋าของฉัน</span>
+    <span class="money num" style="margin:4px 0">฿${fmt(w.balance)}</span>
+    <span class="cap">เบิกไปแล้ว ฿${fmtS(w.issuedIn)} · คืนแล้ว ฿${fmtS(w.returnedOut)}</span>
+    <span class="pill" style="color:${profitOf(me.id)>=0?'var(--in)':'var(--out)'}">ได้/เสีย ${profitOf(me.id)>0?'+':''}${fmtS(profitOf(me.id))}</span>
+  </div>
+  <div class="g2">
+    <button class="btn sec" data-act="modal" data-m="topup">💰 เติมเงิน</button>
+    <button class="btn sec" data-act="modal" data-m="transfer">💸 โอนให้</button>
+  </div>
+  ${S.room.settings.loans?`<button class="btn sec" data-act="modal" data-m="borrow">🤝 ขอยืมเงิน</button>`:''}
+  ${myDebts.length?`<div class="card col"><b class="h2">หนี้ที่ยังค้าง</b>
+    ${myDebts.map(d=>`<div class="lrow">
+      <div class="col" style="gap:2px">
+        <b style="font:600 13px/1 var(--f)">${d.debtor===me.id?'คุณติดหนี้ '+esc(nameOf(S,d.creditor)):esc(nameOf(S,d.debtor))+' ติดหนี้คุณ'}</b>
+        <span class="cap">ยืมไป ฿${fmtS(d.principal)}</span></div>
+      <span class="sp"></span><span class="money-s num ${d.debtor===me.id?'out':'in'}">฿${fmtS(d.outstanding)}</span>
+      ${d.debtor===me.id?`<button class="btn sec sm" data-act="modal" data-m="repay" data-mid="${d.creditor}">คืนหนี้</button>`:''}</div>`).join('')}
+  </div>`:''}
+  <div class="card col"><b class="h2">รายการล่าสุดของฉัน</b>
+    ${S.txs.filter(t=>t.from==='W:'+me.id||t.to==='W:'+me.id).slice(-14).reverse().map(t=>txRow(t)).join('')||'<span class="cap">ยังไม่มีรายการ</span>'}
+  </div>`;
+}
+
+function txRow(t){
+  const inb = t.to==='W:'+me.id;
+  const lbl = {ISSUE_INITIAL:'เงินเริ่มต้นจาก BANK',TOPUP_GRANT:'Admin เติมเงินให้',TOPUP_REQUEST:'เติมเงิน (อนุมัติแล้ว)',
+    RETURN_TO_BANK:'คืนเงินเข้า BANK',TRANSFER_GIVE:'โอนเงิน',TRANSFER_BORROW:'ยืมเงิน',DEBT_REPAY:'คืนหนี้',
+    BET:'ลงกอง',UNBET:'คืนจากกอง',PAYOUT:'รับเงินกองกลาง',REVERSAL:'กลับรายการ'}[t.type]||t.type;
+  const who = t.from.startsWith('W:')&&t.to.startsWith('W:')
+    ? esc(nameOf(S,t.from.slice(2)))+' → '+esc(nameOf(S,t.to.slice(2)))
+    : (t.from==='BANK'?'BANK → '+esc(nameOf(S,t.to.slice(2))):t.to==='BANK'?esc(nameOf(S,t.from.slice(2)))+' → BANK'
+      : t.type==='BET'?esc(nameOf(S,t.from.slice(2)))+' → กองกลาง':'กองกลาง → '+esc(nameOf(S,t.to.slice(2))));
+  const isMine = t.from==='W:'+me.id||t.to==='W:'+me.id;
+  return `<div class="lrow"><div class="col" style="gap:2px">
+      <b style="font:600 12.5px/1.2 var(--f)">#${t.seq} ${lbl}</b>
+      <span class="cap">${who}${t.note?' · '+esc(t.note):''}</span></div>
+    <span class="sp"></span>
+    <span class="money-s num ${isMine?(inb?'in':'out'):'mut'}">${isMine?(inb?'+':'−'):''}฿${fmtS(t.amount)}</span></div>`;
+}
+
+function vHistory(){
+  const f = UI.form.hfilter||'all';
+  let txs = S.txs.slice().reverse();
+  if(f==='mine') txs = txs.filter(t=>t.from==='W:'+me.id||t.to==='W:'+me.id);
+  if(f==='pot') txs = txs.filter(t=>t.type==='BET'||t.type==='PAYOUT'||t.type==='UNBET');
+  if(f==='bank') txs = txs.filter(t=>t.from==='BANK'||t.to==='BANK');
+  return `
+  <div class="row" style="gap:6px;flex-wrap:wrap">
+    ${[['all','ทั้งหมด'],['mine','ของฉัน'],['pot','กองกลาง'],['bank','เบิกเงิน']].map(([k,l])=>
+      `<button class="pill" data-act="hfilter" data-f="${k}" style="${f===k?'background:var(--brand);color:#04140D':''}">${l}</button>`).join('')}
+    <span class="sp"></span><button class="pill" data-act="exportCsv">⇩ CSV</button>
+  </div>
+  <div class="card col" style="gap:6px">
+    ${txs.length?txs.map(t=>txRow(t)).join(''):'<div class="empty"><span class="ic">🕘</span><span class="cap">ยังไม่มีรายการ</span></div>'}
+  </div>
+  <div class="card col"><b class="h2">เหตุการณ์ในห้อง</b>
+    ${S.feed.slice(-30).reverse().map(f=>`<div class="row" style="gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
+      <span>${f.icon}</span><span class="cap" style="color:var(--ts)">${esc(f.text)}</span>
+      <span class="sp"></span><span class="cap">${new Date(f.at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span></div>`).join('')}
+  </div>
+  ${S.rejected&&S.rejected.length?`<div class="card col"><b class="h2 out">รายการที่ระบบปฏิเสธ (${S.rejected.length})</b>
+    ${S.rejected.slice(-8).map(r=>`<span class="cap">${esc(r.ev.t)} — ${esc(r.err)}</span>`).join('')}</div>`:''}`;
+}
+
+function vPlayers(){
+  const list = playersList();
+  const watchers = Object.values(S.members).filter(m=>m.status==='WATCHING'||m.status==='PENDING_JOIN');
+  const ni = netIssued(S), inSys = sumWallets(S)+potNow(S);
+  return `
+  ${isAdmin()?`<div class="card col"><div class="row"><span class="lbl">จำนวนที่นั่ง</span><span class="sp"></span>
+      <button class="btn sec sm" data-act="seatDelta" data-d="-1">−</button>
+      <b class="money-s num" style="width:34px;text-align:center">${S.room.maxSeats}</b>
+      <button class="btn sec sm" data-act="seatDelta" data-d="1">+</button></div>
+    <div class="cap">ลดที่นั่งได้เมื่อไม่มีคนนั่งอยู่</div></div>`:''}
+  <div class="card col">
+    <div class="row"><b class="h2">ลำดับการลงเงิน (${list.length})</b><span class="sp"></span>
+      ${isAdmin()?'<span class="cap">▲▼ ย้ายตำแหน่ง</span>':''}</div>
+    ${isAdmin()?'<div class="cap">ลำดับนี้คือคิวการลงเงิน — คนตำแหน่ง 1 ลงก่อน แล้วไล่ลงไป</div>':''}
+    ${list.map((p,i)=>{ const w=S.wallets[p.id]||{balance:0,issuedIn:0}; const v=profitOf(p.id);
+      const isTurn = S.curRound && S.curRound.status==='OPEN' && S.curRound.turn===p.id;
+      return `<div class="lrow" style="${isTurn?'border-color:var(--pending)':''}">
+        <span class="posbig">${i+1}</span>
+        <span class="av2" style="border-color:${p.color}">${p.role==='ADMIN'?'👑':esc(initials(p.name))}</span>
+        <div class="col" style="gap:2px"><b style="font:600 13px/1 var(--f)">${esc(p.name)}${p.id===me.id?' (คุณ)':''}${isTurn?' <span class="pill pend">ตานี้</span>':''}</b>
+          <span class="cap">${isAdmin()||p.id===me.id?`฿${fmtS(w.balance)} · เบิกไป ฿${fmtS(w.issuedIn)}`:'ตำแหน่ง '+(i+1)}</span></div>
+        <span class="sp"></span>
+        ${isAdmin()||p.id===me.id?`<span class="money-s num" style="color:${v>0?'var(--in)':v<0?'var(--out)':'var(--tm)'}">${v>0?'+':''}${fmtS(v)}</span>`:''}
+        ${isAdmin()?`<div class="col" style="gap:2px">
+          <button class="mv" data-act="moveSeat" data-mid="${p.id}" data-d="-1" ${i===0?'disabled':''}>▲</button>
+          <button class="mv" data-act="moveSeat" data-mid="${p.id}" data-d="1" ${i===list.length-1?'disabled':''}>▼</button></div>
+        <button class="btn sec sm" data-act="modal" data-m="manage" data-mid="${p.id}">⋯</button>`:''}</div>`;
+    }).join('')}
+  </div>
+  ${watchers.length?`<div class="card col"><b class="h2">ผู้ชม (${watchers.length})</b>
+    ${watchers.map(p=>`<div class="lrow"><span class="av2">${esc(initials(p.name))}</span>
+      <b style="font:600 13px/1 var(--f)">${esc(p.name)}</b>
+      ${p.status==='PENDING_JOIN'?'<span class="pill pend">ขอเข้าเล่น</span>':''}
+      <span class="sp"></span>
+      ${isAdmin()?`<button class="btn sm" data-act="approveJoin" data-mid="${p.id}">เชิญเข้าเล่น</button>`:''}</div>`).join('')}
+  </div>`:''}
+  <div class="card col"><b class="h2">ตรวจยอด</b>
+    <div class="row"><span class="lbl">เงินในกระเป๋าทุกคน</span><span class="sp"></span><span class="num">฿${fmtS(sumWallets(S))}</span></div>
+    <div class="row"><span class="lbl">กองกลางตอนนี้</span><span class="sp"></span><span class="num">฿${fmtS(potNow(S))}</span></div>
+    <div class="row" style="border-top:1px solid var(--border);padding-top:7px"><b class="lbl">รวม</b><span class="sp"></span><b class="num">฿${fmtS(inSys)}</b></div>
+    <div class="row"><span class="lbl">เบิกจาก BANK สุทธิ</span><span class="sp"></span><span class="num">฿${fmtS(ni)}</span></div>
+    <div class="ban ${inSys===ni?'g':'r'}">${inSys===ni?'✅ ยอดตรง':'⛔ ยอดไม่ตรง ส่วนต่าง ฿'+fmtS(inSys-ni)}</div>
+  </div>`;
+}
+
+function vSettings(){
+  const s = S.room.settings, adm = isAdmin();
+  return `
+  <div class="card col"><b class="h2">ห้อง</b>
+    <div class="row"><span class="lbl">ชื่อห้อง</span><span class="sp"></span><b>${esc(S.room.name)}</b></div>
+    <div class="row"><span class="lbl">รหัสห้อง</span><span class="sp"></span><b class="code">${S.room.code}</b>
+      <button class="btn sec sm" data-act="copyCode">คัดลอก</button></div>
+    <div class="row"><span class="lbl">โหมดซิงก์</span><span class="sp"></span><span class="pill">${Store.mode==='cloud'?'☁️ ข้ามเครื่อง':'💻 เครื่องนี้'}</span></div>
+  </div>
+  ${adm?`<div class="card col"><b class="h2">กติกาเงิน</b>
+    <label class="row"><span class="lbl">ให้ยืมเงินกันได้</span><span class="sp"></span>
+      <input type="checkbox" data-act="setToggle" data-k="loans" ${s.loans?'checked':''} style="width:auto"></label>
+    <label class="row"><span class="lbl">บังคับเรียงตา (ต้องรอถึงตาตัวเอง)</span><span class="sp"></span>
+      <input type="checkbox" data-act="setToggle" data-k="strict" ${s.strict?'checked':''} style="width:auto"></label>
+    <label class="row"><span class="lbl">ปิดรอบอัตโนมัติเมื่อครบตา</span><span class="sp"></span>
+      <input type="checkbox" data-act="setToggle" data-k="autoClose" ${s.autoClose?'checked':''} style="width:auto"></label>
+    <div class="cap">ครบตา = ผู้เล่นที่ยังไม่หมอบทุกคนลงเงินเท่ากันหมด (หลักโป๊กเกอร์) ถ้าเปิดไว้ ระบบจะปิดรับลงเงินให้เองทันที</div>
+    <label class="row"><span class="lbl">อนุมัติเข้าเล่นแล้วเติมเงินให้อัตโนมัติ</span><span class="sp"></span>
+      <input type="checkbox" data-act="setToggle" data-k="autoGrant" ${s.autoGrant?'checked':''} style="width:auto"></label>
+    <div class="row"><span class="lbl">เงินเริ่มต้นต่อคน</span><span class="sp"></span>
+      <input id="s_start" value="${fmtS(s.startAmount)}" inputmode="decimal" style="width:110px;text-align:right">
+      <button class="btn sec sm" data-act="saveStart">บันทึก</button></div>
+    <div class="row"><span class="lbl">ลงกองกลางต่อคน ต่อรอบ</span><span class="sp"></span>
+      <input id="s_ante" value="${fmtS(s.anteAmount||0)}" inputmode="decimal" style="width:110px;text-align:right">
+      <button class="btn sec sm" data-act="saveAnte">บันทึก</button></div>
+    <div class="cap">มีผลกับรอบถัดไป · ใส่ 0 = ข้ามขั้นตอนลงกองกลาง</div>
+  </div>`:''}
+  <div class="card col"><b class="h2">การแสดงผล</b>
+    <div class="row"><span class="lbl">ธีม</span><span class="sp"></span>
+      <button class="btn sec sm" data-act="theme">${UI.theme==='dark'?'🌙 มืด':'☀️ สว่าง'}</button></div>
+  </div>
+  ${adm?`<button class="btn dgr" data-act="nav" data-s="settle">🏁 ปิดห้อง &amp; เคลียร์ยอด</button>`:''}
+  <button class="btn ghost" data-act="leave">ออกจากห้อง (ไม่ลบข้อมูล)</button>`;
+}
+
+function vSettle(){
+  const list = Object.values(S.members).filter(m=>m.status==='PLAYING'||(S.wallets[m.id]&&S.wallets[m.id].balance>0));
+  const tot = {issued:0,bal:0,pl:0};
+  const rows = list.map(p=>{ const w=S.wallets[p.id]||{balance:0,issuedIn:0,returnedOut:0};
+    const iss=w.issuedIn-w.returnedOut, pl=w.balance-iss;
+    tot.issued+=iss; tot.bal+=w.balance; tot.pl+=pl;
+    return `<tr><td>${p.role==='ADMIN'?'👑 ':''}${esc(p.name)}</td><td class="num">${fmtS(iss)}</td>
+      <td class="num">${fmtS(w.balance)}</td>
+      <td class="num" style="color:${pl>0?'var(--in)':pl<0?'var(--out)':'var(--tm)'}">${pl>0?'+':''}${fmtS(pl)}</td></tr>`; }).join('');
+  const canClose = sumWallets(S)===0 && (!S.curRound||['SETTLED','VOIDED'].includes(S.curRound.status));
+  return `
+  <div class="hdr"><button data-act="nav" data-s="settings">‹</button><b>ปิดห้อง &amp; เคลียร์ยอด</b></div>
+  <div class="body">
+    <div class="card col">
+      <div class="row"><span>${!S.curRound||['SETTLED','VOIDED'].includes(S.curRound.status)?'✅':'⚠️'}</span><span class="lbl">ไม่มีรอบค้าง</span></div>
+      <div class="row"><span>${pendingForAdmin().length?'⚠️':'✅'}</span><span class="lbl">ไม่มีคำขอรออนุมัติ (${pendingForAdmin().length})</span></div>
+      <div class="row"><span>${Object.values(S.debts).some(d=>d.status==='OPEN')?'⚠️':'✅'}</span><span class="lbl">หนี้ระหว่างผู้เล่น</span></div>
+      <div class="row"><span>${sumWallets(S)===0?'✅':'⚠️'}</span><span class="lbl">คืนเงินเข้า BANK ครบ</span></div>
+    </div>
+    <div class="card col"><b class="h2">สรุปผลการเล่น</b>
+      <table><thead><tr><th>ชื่อ</th><th>เบิกไป</th><th>คงเหลือ</th><th>ได้เสีย</th></tr></thead>
+        <tbody>${rows}<tr style="font-weight:700"><td>รวม</td><td class="num">${fmtS(tot.issued)}</td>
+          <td class="num">${fmtS(tot.bal)}</td><td class="num">${tot.pl===0?'0 ✅':fmtS(tot.pl)}</td></tr></tbody></table>
+      <div class="cap">ผลรวมได้เสียต้องเป็น 0 เสมอ (เกมผลรวมศูนย์)</div>
+    </div>
+    ${settleSuggest()}
+    ${sumWallets(S)>0?`<button class="btn" data-act="returnAll">📥 คืนเงินทุกคนเข้า BANK (฿${fmtS(sumWallets(S))})</button>`:''}
+    <button class="btn sec" data-act="exportCsv">⇩ บันทึกเป็น CSV</button>
+  </div>
+  <div class="foot"><button class="btn big dgr" data-act="closeRoom" ${canClose?'':'disabled'}>ปิดห้องถาวร</button></div>`;
+}
+function settleSuggest(){
+  const arr = Object.values(S.members).filter(m=>m.status==='PLAYING').map(p=>{
+    const w=S.wallets[p.id]||{balance:0,issuedIn:0,returnedOut:0};
+    return {name:p.name, v:w.balance-(w.issuedIn-w.returnedOut)}; }).filter(x=>x.v!==0);
+  if(!arr.length) return '';
+  const debt = arr.filter(a=>a.v<0).map(a=>({...a,v:-a.v})).sort((a,b)=>b.v-a.v);
+  const cred = arr.filter(a=>a.v>0).sort((a,b)=>b.v-a.v);
+  const out=[]; let i=0,j=0;
+  while(i<debt.length&&j<cred.length){
+    const x=Math.min(debt[i].v,cred[j].v);
+    if(x>0) out.push(`${debt[i].name} จ่าย ${cred[j].name} ฿${fmtS(x)}`);
+    debt[i].v-=x; cred[j].v-=x;
+    if(debt[i].v<=0)i++; if(cred[j].v<=0)j++;
+  }
+  return out.length?`<div class="card col"><b class="h2">ใครจ่ายใคร (คำแนะนำเคลียร์เงินสด)</b>
+    ${out.map(o=>`<span class="cap">• ${esc(o)}</span>`).join('')}</div>`:'';
+}
+
+function vBroken(){
+  return `<div class="hdr"><b>⛔ ยอดเงินไม่ตรง</b></div>
+  <div class="body"><div class="card col" style="border-color:var(--danger)">
+    <div class="money out" style="text-align:center">⛔</div>
+    <b class="h1" style="text-align:center">ยอดเงินในระบบไม่ตรงกัน</b>
+    <div class="row"><span class="lbl">เงินในระบบ</span><span class="sp"></span><b class="num">฿${fmtS(S.broken.lhs)}</b></div>
+    <div class="row"><span class="lbl">เบิกจาก BANK</span><span class="sp"></span><b class="num">฿${fmtS(S.broken.rhs)}</b></div>
+    <div class="row"><span class="lbl">ส่วนต่าง</span><span class="sp"></span><b class="num out">${S.broken.diff>0?'+':''}${fmtS(S.broken.diff)}</b></div>
+    <div class="ban r">ห้องถูกระงับชั่วคราว ทำธุรกรรมไม่ได้จนกว่าจะตรวจสอบ</div>
+    <button class="btn sec" data-act="nav" data-s="history">ตรวจสอบย้อนหลัง</button>
+  </div></div>`;
+}
+function vClosed(){
+  return `<div class="hdr"><button data-act="leave">‹</button><b>${esc(S.room.name)}</b><span class="sp"></span><span class="pill">ปิดแล้ว</span></div>
+  <div class="body"><div class="ban n">🏁 ห้องนี้ปิดแล้ว — อ่านได้อย่างเดียว</div>
+  ${vSettle().split('<div class="body">')[1].split('<div class="foot">')[0]}</div>`;
+}
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+function renderModal(){
+  const m = UI.modal, box = $('#modals');
+  if(!m){ box.innerHTML=''; return; }
+  let html='';
+  if(m.k==='topup') html = mAmount('เติมเงิน','ขอเบิกเงินเพิ่มจาก Admin',
+      isAdmin()?'เติมเงินให้ตัวเอง (Admin)':'ℹ️ คำขอนี้ต้องรอ Admin อนุมัติ','doTopup');
+  else if(m.k==='custom') html = mAmount('ใส่ยอดเอง','จำนวนเงินที่จะลงกอง',
+      S.curRound&&S.curRound.currentBet>0?'ต้องไม่น้อยกว่า ฿'+fmtS(S.curRound.currentBet):'','doCustom');
+  else if(m.k==='transfer') html = mTransfer('give');
+  else if(m.k==='borrow') html = mTransfer('borrow');
+  else if(m.k==='repay') html = mTransfer('repay');
+  else if(m.k==='manage') html = mManage(m.mid);
+  else if(m.k==='more') html = mMore();
+  else if(m.k==='cloud') html = mCloud();
+  else if(m.k==='confirm') html = mConfirm(m);
+  else if(m.k==='summary') html = mSummary(m.round);
+  box.innerHTML = html;
+}
+function mWrap(inner, mid){ return `<div class="mask ${mid?'mid':''}" data-act="closeMask"><div class="sheet" data-stop="1">${mid?'':'<div class="handle"></div>'}${inner}</div></div>`; }
+
+function mAmount(title, sub, hint, act){
+  const v = UI.form.amt||'';
+  return mWrap(`
+    <b class="h1" style="text-align:center">${title}</b>
+    <div class="cap" style="text-align:center">${sub}</div>
+    <div class="money num" style="text-align:center;margin:8px 0;color:${v?'var(--tp)':'var(--tm)'}">฿${v||'0'}</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:center">
+      ${[100,300,500,1000].map(x=>`<button class="pill" data-act="amtAdd" data-v="${x}">+${x}</button>`).join('')}
+      <button class="pill" data-act="amtClr">ล้าง</button>
+    </div>
+    <div class="kbd">${[1,2,3,4,5,6,7,8,9].map(n=>`<button data-act="amtKey" data-k="${n}">${n}</button>`).join('')}
+      <button data-act="amtKey" data-k=".">.</button><button data-act="amtKey" data-k="0">0</button>
+      <button data-act="amtKey" data-k="del">⌫</button></div>
+    ${hint?`<div class="ban i">${hint}</div>`:''}
+    <div class="g2"><button class="btn ghost" data-act="closeModal">ยกเลิก</button>
+      <button class="btn" data-act="${act}">ยืนยัน</button></div>`);
+}
+
+function mTransfer(mode){
+  const others = playersList().filter(p=>p.id!==me.id);
+  const to = UI.form.to || (UI.modal.mid||null);
+  const v = UI.form.amt||'';
+  const amt = B(parseFloat(v||'0')||0);
+  const w = myWallet();
+  const title = mode==='give'?'โอนเงินให้ผู้เล่น':mode==='borrow'?'ขอยืมเงินจากผู้เล่น':'คืนหนี้';
+  const target = to?S.members[to]:null;
+  let summary='';
+  if(target){
+    if(mode==='borrow') summary = `<div class="card col" style="gap:6px">
+        <div class="row"><span class="av2">${esc(initials(target.name))}</span><b>${esc(target.name)}</b>
+          <span class="sp"></span><b class="in num">+฿${fmtS(amt)}</b><span>▶</span><span class="av2">คุณ</span></div>
+        <div class="ban y">⚠ คุณจะติดหนี้ ${esc(target.name)} ฿${fmtS(amt)}</div>
+        <div class="cap">ต้องรอ ${esc(target.name)} ยินยอมก่อน (ไม่ต้องผ่าน Admin)</div></div>`;
+    else summary = `<div class="card col" style="gap:6px">
+        <div class="row"><span class="av2">คุณ</span><b class="out num">−฿${fmtS(amt)}</b><span>▶</span>
+          <span class="av2">${esc(initials(target.name))}</span><b>${esc(target.name)}</b></div>
+        <div class="cap">กระเป๋าคุณ ฿${fmtS(w.balance)} → <b class="${w.balance-amt<0?'out':''}">฿${fmtS(Math.max(0,w.balance-amt))}</b></div>
+        <div class="ban g">✓ โอนได้ทันที ไม่ต้องรอ Admin — ${esc(target.name)} จะได้รับแจ้งเตือน</div></div>`;
+  }
+  const bad = !to || amt<=0 || (mode!=='borrow' && amt>w.balance);
+  return mWrap(`
+    <b class="h1" style="text-align:center">${title}</b>
+    <div class="lbl">${mode==='borrow'?'ขอยืมจาก':'โอนให้'}</div>
+    <div class="rings">${others.map(p=>`<div class="pr" data-act="pickTo" data-mid="${p.id}" style="cursor:pointer">
+      <span class="av ${to===p.id?'sel':''}" style="${to===p.id?'border-color:var(--brand4)':''}">${esc(initials(p.name))}</span>
+      <span class="nm">${esc(p.name)}</span></div>`).join('')||'<span class="cap">ยังไม่มีผู้เล่นอื่น</span>'}</div>
+    <div class="money num" style="text-align:center;margin:4px 0;color:${v?'var(--tp)':'var(--tm)'}">฿${v||'0'}</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:center">
+      ${[50,100,500].map(x=>`<button class="pill" data-act="amtAdd" data-v="${x}">+${x}</button>`).join('')}
+      ${mode!=='borrow'?`<button class="pill" data-act="amtAll">ทั้งหมด</button>`:''}
+      <button class="pill" data-act="amtClr">ล้าง</button></div>
+    <div class="kbd">${[1,2,3,4,5,6,7,8,9].map(n=>`<button data-act="amtKey" data-k="${n}">${n}</button>`).join('')}
+      <button data-act="amtKey" data-k=".">.</button><button data-act="amtKey" data-k="0">0</button>
+      <button data-act="amtKey" data-k="del">⌫</button></div>
+    ${summary}
+    <div class="g2"><button class="btn ghost" data-act="closeModal">ยกเลิก</button>
+      <button class="btn" data-act="${mode==='give'?'doTransfer':mode==='borrow'?'doBorrow':'doRepay'}" ${bad?'disabled':''}>
+        ${mode==='borrow'?'ส่งคำขอยืม':mode==='repay'?'คืนหนี้ ฿'+fmtS(amt):'ยืนยันโอน ฿'+fmtS(amt)}</button></div>`);
+}
+
+function mManage(mid){
+  const m = S.members[mid], w = S.wallets[mid]||{balance:0,issuedIn:0};
+  const v = UI.form.amt||'';
+  const mode = UI.form.mmode||'add';
+  const amt = B(parseFloat(v||'0')||0);
+  const ni = netIssued(S);
+  return mWrap(`
+    <b class="h1" style="text-align:center">👑 จัดการเงิน — ${esc(m.name)}</b>
+    <div class="cap" style="text-align:center">กระเป๋าตอนนี้ ฿${fmt(w.balance)}</div>
+    <div class="tabs"><button class="${mode==='add'?'on':''}" data-act="mmode" data-v="add">＋ เติมเงิน</button>
+      <button class="${mode==='ret'?'on':''}" data-act="mmode" data-v="ret">− คืน BANK</button></div>
+    <div class="money num" style="text-align:center;margin:4px 0;color:${v?'var(--tp)':'var(--tm)'}">฿${v||'0'}</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;justify-content:center">
+      ${[100,500,1000].map(x=>`<button class="pill" data-act="amtAdd" data-v="${x}">+${x}</button>`).join('')}
+      ${mode==='ret'?`<button class="pill" data-act="amtAllOf" data-mid="${mid}">ทั้งหมด</button>`:''}
+      <button class="pill" data-act="amtClr">ล้าง</button></div>
+    <div class="kbd">${[1,2,3,4,5,6,7,8,9].map(n=>`<button data-act="amtKey" data-k="${n}">${n}</button>`).join('')}
+      <button data-act="amtKey" data-k=".">.</button><button data-act="amtKey" data-k="0">0</button>
+      <button data-act="amtKey" data-k="del">⌫</button></div>
+    <div class="card col" style="gap:5px"><b class="lbl">ผลกระทบต่อระบบ</b>
+      <div class="row"><span class="cap">กระเป๋า ${esc(m.name)}</span><span class="sp"></span>
+        <span class="num">฿${fmtS(w.balance)} → <b>฿${fmtS(mode==='add'?w.balance+amt:Math.max(0,w.balance-amt))}</b></span></div>
+      <div class="row"><span class="cap">เบิกจาก BANK</span><span class="sp"></span>
+        <span class="num">฿${fmtS(ni)} → <b class="${mode==='add'?'in':'out'}">฿${fmtS(mode==='add'?ni+amt:ni-amt)}</b> ${mode==='add'?'▲':'▼'}</span></div>
+    </div>
+    <div class="g2"><button class="btn ghost" data-act="closeModal">ยกเลิก</button>
+      <button class="btn ${mode==='ret'?'dgr':''}" data-act="doManage" data-mid="${mid}" ${amt<=0?'disabled':''}>
+        ${mode==='add'?'ยืนยันเติมเงิน':'ยืนยันคืน BANK'}</button></div>
+    ${meM()&&meM().role==='ADMIN'&&m.status==='PLAYING'&&mid!==me.id
+      ? `<button class="btn sec" data-act="makeAdmin" data-mid="${mid}">👑 โอนสิทธิ์ Admin ให้ ${esc(m.name)}</button>` : ''}
+    <button class="btn ghost" data-act="removeMember" data-mid="${mid}">เอา ${esc(m.name)} ออกจากวง</button>`);
+}
+
+function mMore(){
+  return mWrap(`<b class="h1" style="text-align:center">เพิ่มเติม</b>
+    ${S.room.settings.loans?`<button class="btn sec" data-act="modal" data-m="borrow">🤝 ขอยืมเงินจากผู้เล่น</button>`:''}
+    <button class="btn sec" data-act="nav" data-s="wallet">💰 ดูกระเป๋าและหนี้ของฉัน</button>
+    <button class="btn sec" data-act="nav" data-s="history">🕘 ประวัติธุรกรรม</button>
+    <button class="btn ghost" data-act="closeModal">ปิด</button>`);
+}
+
+function mCloud(){
+  const c = sbCfg();
+  if(c && c.baked) return mWrap(`<b class="h1" style="text-align:center">☁️ เล่นข้ามเครื่อง</b>
+    <div class="ban g">✅ เว็บนี้ต่อ Supabase ไว้แล้ว — ทุกคนที่เปิดลิงก์นี้เล่นห้องเดียวกันได้เลย</div>
+    <div class="cap" style="word-break:break-all">${esc(c.url)}</div>
+    <button class="btn ghost" data-act="closeModal">ปิด</button>`);
+  return mWrap(`<b class="h1" style="text-align:center">☁️ เล่นข้ามเครื่อง</b>
+    <div class="cap">ไฟล์ HTML ไฟล์เดียวซิงก์ข้ามเครื่องเองไม่ได้ ต้องมีตัวกลาง — ใช้ <b>Supabase</b> ฟรี ไม่ต้องรัน server</div>
+    <div class="card col" style="gap:5px"><b class="lbl">วิธีตั้งค่า (ทำครั้งเดียว ~3 นาที)</b>
+      <span class="cap">1. เข้า <b>supabase.com</b> → New project (ฟรี)</span>
+      <span class="cap">2. เมนู <b>SQL Editor</b> → วางสคริปต์จากไฟล์ <b>supabase-schema.sql</b> → Run</span>
+      <span class="cap">3. เมนู <b>Project Settings → API</b> → คัดลอก <b>Project URL</b> และ <b>anon public key</b></span>
+      <span class="cap">4. วาง 2 ค่านั้นในช่องล่างนี้ → บันทึก</span>
+      <span class="cap">5. ส่งไฟล์นี้ให้เพื่อน (หรือ deploy ขึ้น Vercel ตาม <b>DEPLOY.md</b>) — ทุกคนใช้ค่าชุดเดียวกัน</span>
+    </div>
+    <div class="col" style="gap:7px">
+      <input id="sb_url" placeholder="https://xxxxxxxx.supabase.co" value="${esc((c&&c.url)||'')}">
+      <input id="sb_key" placeholder="anon public key (ขึ้นต้นด้วย eyJ...)" value="${esc((c&&c.key)||'')}">
+    </div>
+    <div class="ban y">⚠ anon key เปิดให้ใครก็ตามที่มีลิงก์อ่าน/เขียนตารางนี้ได้ — เหมาะกับเล่นกับเพื่อน ไม่ควรใส่ข้อมูลสำคัญ</div>
+    <div class="g2"><button class="btn ghost" data-act="closeModal">ปิด</button>
+      <button class="btn" data-act="saveCloud">บันทึก &amp; ใช้โหมดข้ามเครื่อง</button></div>
+    ${c?`<button class="btn ghost" data-act="clearCloud">กลับไปใช้โหมดเครื่องนี้</button>`:''}`);
+}
+
+function mConfirm(m){
+  return mWrap(`<b class="h1" style="text-align:center">${esc(m.title)}</b>
+    <div class="cap" style="text-align:center">${esc(m.text||'')}</div>
+    <div class="g2"><button class="btn ghost" data-act="closeModal">ยกเลิก</button>
+      <button class="btn ${m.danger?'dgr':''}" data-act="confirmYes">${esc(m.ok||'ยืนยัน')}</button></div>`, true);
+}
+
+function mSummary(r){
+  const mySeat = seatOf(r,me.id);
+  const myWin = (r.winners.find(w=>w.memberId===me.id)||{}).amount||0;
+  const myBet = mySeat?mySeat.contributed:0;
+  const net = myWin-myBet;
+  return mWrap(`<b class="h1" style="text-align:center">🏁 จบรอบที่ ${r.index}</b>
+    <div class="card col" style="align-items:center;background:var(--pot-bg);border-color:var(--pot)">
+      <span class="lbl pot">🏆 ผู้ชนะ</span>
+      <b class="h2" style="text-align:center">${r.winners.map(w=>esc(nameOf(S,w.memberId))+' ฿'+fmtS(w.amount)).join(' · ')||'ไม่มี (กองว่าง)'}</b>
+    </div>
+    ${mySeat?`<div class="card col" style="align-items:center">
+      <span class="lbl">ผลของคุณ</span>
+      <span class="cap">ลงไป ฿${fmtS(myBet)} · ได้รับ ฿${fmtS(myWin)}</span>
+      <span class="money num ${net>0?'in':net<0?'out':''}">${net>0?'+':''}฿${fmtS(Math.abs(net))}</span>
+    </div>`:''}
+    <table><thead><tr><th>ผู้เล่น</th><th>ลง</th><th>ได้รับ</th></tr></thead><tbody>
+      ${r.seats.map(s=>{ const wn=(r.winners.find(w=>w.memberId===s.memberId)||{}).amount||0;
+        return `<tr><td>${esc(nameOf(S,s.memberId))}${s.state==='FOLDED'?' <span class="cap">(หมอบ)</span>':''}</td>
+          <td class="num">${s.contributed?fmtS(s.contributed):'—'}</td><td class="num ${wn?'in':''}">${wn?fmtS(wn):'—'}</td></tr>`; }).join('')}
+      <tr style="font-weight:700"><td>รวม</td><td class="num">${fmtS(r.totalIn)}</td><td class="num">${fmtS(r.winners.reduce((a,w)=>a+w.amount,0))} ✅</td></tr>
+    </tbody></table>
+    <button class="btn" data-act="closeModal">ปิด</button>
+    ${isAdmin()?`<button class="btn gold" data-act="openRoundFromSummary">▶ เปิดรอบใหม่</button>`:''}`, true);
+}
+
+/* ============================================================
+   ACTIONS
+   ============================================================ */
+const A = {
+  theme(){ UI.theme = UI.theme==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme', UI.theme==='light'?'light':'dark');
+    LS.set('pk:theme',UI.theme); render(); },
+  back(){ UI.screen='landing'; render(); },
+  nav(d){ UI.screen=d.s; UI.form.winners=undefined; UI.modal=null; render(); },
+  tab(d){ UI.tab=d.t; render(); },
+  closeModal(){ UI.modal=null; UI.form.amt=''; UI.form.to=null; render(); },
+  closeMask(e,el){ UI.modal=null; UI.form.amt=''; UI.form.to=null; render(); },
+  modal(d){ UI.modal={k:d.m,mid:d.mid}; UI.form.amt=''; UI.form.to=d.mid||null; UI.form.mmode='add'; render(); },
+  openPend(){ UI.screen='approvals'; render(); },
+
+  goCreate(){ const n=$('#myname').value.trim(); if(!n) return toast('ใส่ชื่อก่อนนะ','r');
+    me.name=n; Me.save(me); UI.screen='create'; UI.form={seats:5,start:1000,ante:10,chips:'5,10,20,30,50,100',loans:true,strict:true,autoClose:true,autoGrant:true}; render(); },
+  goJoin(){ const n=$('#myname').value.trim(); if(!n) return toast('ใส่ชื่อก่อนนะ','r');
+    me.name=n; Me.save(me); UI.screen='join'; render(); },
+  seats(d){ UI.form.seats = Math.max(1,Math.min(20,(UI.form.seats||5)+Number(d.d))); render(); },
+  setStart(d){ UI.form.start = Number(d.v); render(); },
+  setAnte(d){ UI.form.ante = Number(d.v); render(); },
+
+  async doCreate(){
+    const name = $('#f_name').value.trim() || 'วงของฉัน';
+    const start = B(parseFloat($('#f_start').value)||0);
+    const chips = $('#f_chips').value.split(',').map(x=>parseFloat(x.trim())).filter(x=>x>0);
+    const code = roomCode();
+    const ante = B(parseFloat($('#f_ante').value)||0);
+    try{ await Store.open(code, Store.mode); }catch(e){ return toast(e.message,'r'); }
+    await Store.append({t:'ROOM_CREATED',code,name,name2:me.name,maxSeats:UI.form.seats||5,
+      settings:{startAmount:start, anteAmount:ante, chips:chips.length?chips:[5,10,20,30,50,100],
+        loans:$('#f_loans').checked, strict:$('#f_strict').checked,
+        autoClose:$('#f_autoclose').checked, autoGrant:$('#f_auto').checked}});
+    if(start>0) await Store.append({t:'ISSUE',mid:me.id,amount:start,kind:'ISSUE_INITIAL',note:'เงินเริ่มต้น'});
+    UI.screen='home'; UI.tab='control'; refresh();
+    toast('สร้างห้องแล้ว รหัส '+code,'g');
+  },
+  async doJoin(){
+    const code = $('#j_code').value.trim().toUpperCase();
+    if(code.length!==6) return toast('รหัสห้องต้อง 6 หลัก','r');
+    toast('กำลังเข้าห้อง…','y');
+    try{ await Store.open(code, Store.mode); }catch(e){ return toast(e.message,'r'); }
+    S = reduce(Store.events);
+    if(!S.room) return toast('ไม่พบห้องนี้ — ตรวจรหัสหรือโหมดการเชื่อมต่อ','r');
+    if(!S.members[me.id]) await Store.append({t:'MEMBER_JOINED',mid:me.id,name:me.name});
+    UI.screen='home'; refresh();
+  },
+  async openRoom(d){ try{ await Store.open(d.code, Store.mode); }catch(e){ return toast(e.message,'r'); }
+    UI.screen='home'; refresh(); },
+  leave(){ Store.close(); S=blankState(); UI.screen='landing'; render(); },
+
+  askJoin(){ cmd({t:'JOIN_REQUESTED'}); },
+  cancelJoin(){ cmd({t:'JOIN_REJECTED',mid:me.id,reason:'ยกเลิกเอง',by:S.room.ownerId}); },
+  approveJoin(d){
+    const inp = document.getElementById('ja_'+d.rid);
+    const amt = inp ? B(parseFloat(inp.value)||0) : (S.room.settings.autoGrant?S.room.settings.startAmount:0);
+    cmd({t:'JOIN_APPROVED',mid:d.mid,amount:amt});
+  },
+  rejectJoin(d){ cmd({t:'JOIN_REJECTED',mid:d.mid,reason:''}); },
+  approveReq(d){ cmd({t:'REQ_APPROVED',rid:d.rid}); },
+  rejectReq(d){ cmd({t:'REQ_REJECTED',rid:d.rid,reason:''}); },
+
+  pickChip(d){ UI.form.betSel = Number(d.v); render(); },
+  lockedChip(d){ const r=S.curRound; toast('ต้องลงอย่างน้อย ฿'+fmtS(r?r.currentBet:0),'r'); },
+  lockedCheck(){ toast('ลง 0 ได้เฉพาะรอบที่ยังไม่มีใครลงเงิน','r'); },
+  async bet(){ const v=UI.form.betSel; if(v==null) return;
+    if(await cmd({t:'BET',amount:v})) UI.form.betSel=null; },
+  fold(){ UI.modal={k:'confirm',title:'หมอบรอบนี้?',text:'คุณจะไม่เสียเงิน แต่จะไม่มีสิทธิ์รับกองรอบนี้',ok:'หมอบการ์ด',danger:true,
+    fn:()=>cmd({t:'FOLD'})}; render(); },
+  check(){ cmd({t:'CHECK'}); },
+  confirmYes(){ const f=UI.modal&&UI.modal.fn; UI.modal=null; render(); f&&f(); },
+
+  openRound(){ cmd({t:'ROUND_OPENED'}); },
+  openRoundFromSummary(){ UI.modal=null; cmd({t:'ROUND_OPENED'}); },
+  lockRound(){ cmd({t:'ROUND_LOCK'}); },
+  unlockRound(){ cmd({t:'ROUND_UNLOCK'}); },
+  voidRound(){ UI.modal={k:'confirm',title:'ยกเลิกรอบนี้?',text:'เงินทุกคนจะถูกคืนเต็มจำนวน',ok:'ยกเลิกรอบ',danger:true,
+    fn:()=>cmd({t:'ROUND_VOID'})}; render(); },
+
+  ante(){ cmd({t:'ANTE'}); },
+  anteSitout(){ UI.modal={k:'confirm',title:'ไม่ลงกองกลาง?',text:'คุณจะพักรอบนี้ และไม่มีสิทธิ์รับกอง',ok:'พักรอบนี้',danger:true,
+    fn:()=>cmd({t:'ANTE_SITOUT'})}; render(); },
+  makeAdmin(d){
+    const n = nameOf(S,d.mid);
+    UI.modal={k:'confirm',title:'โอนสิทธิ์ Admin ให้ '+n+'?',
+      text:'หลังโอนแล้ว '+n+' จะเป็นนายธนาคารแทนคุณ — อนุมัติเงิน เปิด/ปิดรอบ และจ่ายกองได้ ส่วนคุณจะกลายเป็นผู้เล่นธรรมดา',
+      ok:'โอนสิทธิ์ Admin',danger:true,
+      fn:()=>cmd({t:'ADMIN_TRANSFERRED',mid:d.mid})}; render(); },
+  moveSeat(d){
+    const list = playersList().map(p=>p.id);
+    const i = list.indexOf(d.mid), j = i+Number(d.d);
+    if(i<0||j<0||j>=list.length) return;
+    [list[i],list[j]] = [list[j],list[i]];
+    cmd({t:'SEATS_REORDER',order:list});
+  },
+  togWin(d){ const w = UI.form.winners||{};
+    if(w[d.mid]!==undefined) delete w[d.mid]; else w[d.mid]=0;
+    UI.form.winners=w; render(); },
+  foldedWin(){ toast('ผู้เล่นนี้หมอบรอบนี้แล้ว','r'); },
+  rmWin(d){ const w=UI.form.winners||{}; delete w[d.mid]; UI.form.winners=w; render(); },
+  splitEqual(){ const w=UI.form.winners||{}; const ks=Object.keys(w); if(!ks.length) return toast('เลือกผู้ชนะก่อน','r');
+    const pot=S.curRound.pot, base=Math.floor(pot/ks.length), rem=pot-base*ks.length;
+    ks.forEach((k,i)=>w[k]=base+(i===0?rem:0)); UI.form.winners=w;
+    if(rem) toast('เศษ ฿'+fmtS(rem)+' ตกที่คนแรก','y'); render(); },
+  giveAll(){ const w=UI.form.winners||{}; const ks=Object.keys(w); if(!ks.length) return toast('เลือกผู้ชนะก่อน','r');
+    ks.forEach((k,i)=>w[k]=i===0?S.curRound.pot:0); UI.form.winners=w; render(); },
+  payAlone(d){ UI.form.winners={[d.mid]:S.curRound.pot}; UI.screen='payout'; render(); },
+  async doPayout(){
+    const w = UI.form.winners||{};
+    const winners = Object.keys(w).map(k=>({memberId:k,amount:w[k]}));
+    const r = S.curRound;
+    if(await cmd({t:'PAYOUT',winners})){
+      UI.form.winners=undefined; UI.screen='home'; UI.tab='control';
+      setTimeout(()=>{ const rr=S.rounds.find(x=>x.id===r.id); if(rr){ UI.modal={k:'summary',round:rr}; render(); } },120);
+    }
+  },
+
+  amtKey(d){ let v=UI.form.amt||'';
+    if(d.k==='del') v=v.slice(0,-1);
+    else if(d.k==='.'){ if(!v.includes('.')) v=(v||'0')+'.'; }
+    else { if(v.includes('.')&&v.split('.')[1].length>=2) return; v=(v==='0'?'':v)+d.k; }
+    UI.form.amt=v; render(); },
+  amtAdd(d){ UI.form.amt = String((parseFloat(UI.form.amt||'0')||0)+Number(d.v)); render(); },
+  amtClr(){ UI.form.amt=''; render(); },
+  amtAll(){ UI.form.amt = String(myWallet().balance/100); render(); },
+  amtAllOf(d){ UI.form.amt = String((S.wallets[d.mid]||{balance:0}).balance/100); render(); },
+  pickTo(d){ UI.form.to=d.mid; render(); },
+  mmode(d){ UI.form.mmode=d.v; UI.form.amt=''; render(); },
+
+  async doTopup(){ const a=B(parseFloat(UI.form.amt||'0')||0); if(a<=0) return toast('ใส่จำนวนเงิน','r');
+    if(isAdmin()){ if(await cmd({t:'ISSUE',mid:me.id,amount:a,kind:'TOPUP_GRANT',note:'Admin เติมให้ตัวเอง (SELF_ISSUE)'})) A.closeModal(); }
+    else if(await cmd({t:'TOPUP_REQUESTED',amount:a,note:''})){ A.closeModal(); toast('ส่งคำขอแล้ว รอ Admin อนุมัติ','y'); } },
+  async doCustom(){ const a=B(parseFloat(UI.form.amt||'0')||0); if(a<=0) return toast('ใส่จำนวนเงิน','r');
+    UI.form.betSel=a; A.closeModal(); },
+  async doTransfer(){ const a=B(parseFloat(UI.form.amt||'0')||0), to=UI.form.to;
+    if(!to||a<=0) return;
+    if(await cmd({t:'TRANSFER',from:me.id,to,amount:a,kind:'TRANSFER_GIVE'})){ A.closeModal(); toast('โอนสำเร็จ −฿'+fmtS(a),'g'); } },
+  async doRepay(){ const a=B(parseFloat(UI.form.amt||'0')||0), to=UI.form.to;
+    if(!to||a<=0) return;
+    if(await cmd({t:'TRANSFER',from:me.id,to,amount:a,kind:'DEBT_REPAY'})){ A.closeModal(); toast('คืนหนี้แล้ว','g'); } },
+  async doBorrow(){ const a=B(parseFloat(UI.form.amt||'0')||0), from=UI.form.to;
+    if(!from||a<=0) return;
+    if(await cmd({t:'BORROW_REQUESTED',from,to:me.id,amount:a,note:''})){ A.closeModal(); toast('ส่งคำขอแล้ว รอยินยอม','y'); } },
+  async doManage(d){ const a=B(parseFloat(UI.form.amt||'0')||0); if(a<=0) return;
+    const ok = UI.form.mmode==='ret'
+      ? await cmd({t:'RETURN_TO_BANK',mid:d.mid,amount:a,note:'Admin คืนเข้า BANK'})
+      : await cmd({t:'ISSUE',mid:d.mid,amount:a,kind:'TOPUP_GRANT',note:'Admin เติมให้'});
+    if(ok) A.closeModal(); },
+  removeMember(d){ UI.modal={k:'confirm',title:'เอาผู้เล่นออกจากวง?',text:'ต้องเคลียร์เงินในกระเป๋าให้เป็น 0 ก่อน',ok:'เอาออก',danger:true,
+    fn:()=>cmd({t:'MEMBER_REMOVED',mid:d.mid})}; render(); },
+
+  seatDelta(d){ cmd({t:'SEATS_SET',n:S.room.maxSeats+Number(d.d)}); },
+  setToggle(d,el){ const s={}; s[d.k]=el.checked; cmd({t:'SETTINGS_SET',settings:s}); },
+  saveStart(){ const v=B(parseFloat($('#s_start').value)||0); cmd({t:'SETTINGS_SET',settings:{startAmount:v}}); toast('บันทึกแล้ว','g'); },
+  saveAnte(){ const v=B(parseFloat($('#s_ante').value)||0); cmd({t:'SETTINGS_SET',settings:{anteAmount:v}}); toast('บันทึกแล้ว มีผลรอบถัดไป','g'); },
+  copyCode(){ navigator.clipboard?.writeText(S.room.code); toast('คัดลอกรหัสห้องแล้ว','g'); },
+  hfilter(d){ UI.form.hfilter=d.f; render(); },
+  async returnAll(){
+    for(const [mid,w] of Object.entries(S.wallets)){
+      if(w.balance>0) await Store.append({t:'RETURN_TO_BANK',mid,amount:w.balance,note:'เคลียร์ยอดปิดห้อง',by:me.id});
+    }
+    refresh(); toast('คืนเงินทุกคนเข้า BANK แล้ว','g'); },
+  closeRoom(){ UI.modal={k:'confirm',title:'ปิดห้องถาวร?',text:'หลังปิดจะอ่านได้อย่างเดียว แก้ไขอะไรไม่ได้อีก',ok:'ปิดห้อง',danger:true,
+    fn:()=>cmd({t:'ROOM_CLOSED'})}; render(); },
+  exportCsv(){
+    const rows=[['seq','เวลา','ประเภท','จาก','ไป','จำนวน(บาท)','หมายเหตุ']];
+    const nm=a=>a==='BANK'?'BANK':a.startsWith('W:')?nameOf(S,a.slice(2)):'กองกลาง';
+    S.txs.forEach(t=>rows.push([t.seq,new Date(t.at).toLocaleString('th-TH'),t.type,nm(t.from),nm(t.to),(t.amount/100).toFixed(2),t.note]));
+    const csv='﻿'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+    a.download='ledger-'+S.room.code+'.csv'; a.click(); toast('ดาวน์โหลดแล้ว','g'); },
+
+  cloudSetup(){ UI.modal={k:'cloud'}; render(); },
+  async saveCloud(){
+    const url = document.getElementById('sb_url').value.trim().replace(/\/+$/,'');
+    const key = document.getElementById('sb_key').value.trim();
+    if(!/^https:\/\/.+\.supabase\.(co|in)$/.test(url)) return toast('Project URL ไม่ถูกต้อง (ต้องเป็น https://xxx.supabase.co)','r');
+    if(key.length<40) return toast('anon key ดูสั้นเกินไป ลองคัดลอกใหม่','r');
+    LS.set('pk:sb', JSON.stringify({url,key}));
+    _sbClient = null;
+    try{
+      const sb = await getSupabase({url,key});
+      const {error} = await sb.from(SB_TABLE).select('id').limit(1);
+      if(error) throw new Error(error.message+' — รันสคริปต์ supabase-schema.sql แล้วหรือยัง?');
+      Store.mode='cloud';
+      toast('เชื่อมต่อ Supabase สำเร็จ — โหมดข้ามเครื่องพร้อมใช้','g');
+    }catch(e){ LS.del('pk:sb'); toast('เชื่อมต่อไม่สำเร็จ: '+e.message,'r'); }
+    UI.modal=null; render(); },
+  clearCloud(){ LS.del('pk:sb'); _sbClient=null; Store.mode='local'; UI.modal=null; toast('กลับไปใช้โหมดเครื่องนี้','y'); render(); },
+};
+function getFbCfg(){ return sbCfg(); }
+
+/* ---------- event delegation ---------- */
+document.addEventListener('click', e=>{
+  const el = e.target.closest('[data-act]');
+  if(!el){ return; }
+  if(el.dataset.act==='closeMask' && e.target.closest('[data-stop]')) return;
+  const fn = A[el.dataset.act];
+  if(fn){ e.preventDefault(); fn(el.dataset, el, e); }
+});
+document.addEventListener('change', e=>{
+  const el = e.target.closest('[data-act]');
+  if(el && el.type==='checkbox' && A[el.dataset.act]) A[el.dataset.act](el.dataset, el, e);
+});
+document.addEventListener('input', e=>{
+  if(e.target.classList.contains('wamt')){
+    const w = UI.form.winners||{};
+    w[e.target.dataset.mid] = B(parseFloat(e.target.value)||0);
+    UI.form.winners=w;
+    // อัปเดตเฉพาะแถบยอด ไม่ re-render ทั้งหน้า (กัน input เสีย focus)
+    const r=S.curRound, paid=Object.values(w).reduce((a,b)=>a+b,0), left=r.pot-paid;
+    const ban=document.querySelector('.body .ban:last-of-type'), btn=document.querySelector('.foot .btn');
+    if(ban){ ban.className='ban '+(left===0?'g':left>0?'y':'r');
+      ban.innerHTML=`<b class="num">กอง ฿${fmtS(r.pot)} · จ่าย ฿${fmtS(paid)} · ${left>=0?'เหลือ':'เกิน'} ฿${fmtS(Math.abs(left))}</b>
+        <span class="sp"></span>${left===0?'✅ ยอดตรงพอดี':left>0?'⚠️ ยังจ่ายไม่ครบ':'⛔ จ่ายเกินกอง'}`; }
+    if(btn){ if(left===0) btn.removeAttribute('disabled'); else btn.setAttribute('disabled',''); }
+  }
+});
+
+/* ---------- boot ---------- */
+UI.theme = LS.get('pk:theme')||'dark';
+document.documentElement.setAttribute('data-theme', UI.theme==='light'?'light':'dark');
+if(getFbCfg()) Store.mode='cloud';
+render();
+</script>
+</body>
+</html>

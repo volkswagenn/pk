@@ -1,0 +1,17 @@
+# ไฟล์ระบบ
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# เครื่องมือ
+node_modules/
+.vercel/
+.env
+.env.local
+*.log
+
+# ไฟล์ชั่วคราวของ editor
+*.swp
+*~
+.vscode/
+.idea/
