@@ -246,6 +246,20 @@ input:focus,select:focus{border-color:var(--brand)}
 .wcard .crown{position:absolute;top:-9px;font-size:17px}
 .wcard .n{font:600 11.5px/1.1 var(--f);text-align:center}
 .wcard .amt{font:700 13px/1 var(--f);color:var(--pot)}
+/* ===== ไพ่กลาง (community cards) ===== */
+.cards{display:flex;gap:9px;justify-content:center;padding:6px 0}
+.pcard{width:54px;height:78px;perspective:500px;flex:none}
+.pcard .in{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .5s}
+.pcard.flip .in{animation:cardFlip 1s ease-in-out infinite alternate}
+@keyframes cardFlip{0%{transform:rotateY(0)}100%{transform:rotateY(180deg)}}
+@media (prefers-reduced-motion:reduce){.pcard.flip .in{animation-duration:2.4s}}
+.pcard .fc,.pcard .bk{position:absolute;inset:0;border-radius:8px;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.4)}
+.pcard .bk{background:repeating-linear-gradient(45deg,#7C2B33 0 5px,#5E1E25 5px 10px);border:2.5px solid #fff}
+.pcard .fc{background:#FDFDFD;border:1px solid #C9CFD8;transform:rotateY(180deg);flex-direction:column;gap:1px}
+.pcard.open .in{transform:rotateY(180deg)}
+.pcard .fc .pip{font-size:25px;line-height:1}
+.pcard .fc .no{font:800 12px/1 var(--f);color:#10151C}
 /* misc */
 .kbd{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 .kbd button{height:50px;border-radius:11px;background:var(--bg-inset);border:1px solid var(--border);font:700 18px/1 var(--f)}
@@ -1140,6 +1154,7 @@ function refresh(){
   const firstLoad = !prev.room;              // เพิ่งเปิดห้อง — ไม่ต้องเด้งย้อนหลังทั้งหมด
   S = reduce(Store.events);
   notifyMyTurn(prev);
+  if(!firstLoad) maybePopups(prev);
   if(!firstLoad && prev.feed && S.feed.length>prev.feed.length && UI.screen!=='landing'){
     const added = S.feed.slice(prev.feed.length).filter(f=>f.kind!=='silent');
     if(added.length > 2){
@@ -1188,6 +1203,35 @@ function notifyMyTurn(prev){
   const mine = b.turn===me.id;
   const wasMine = !!(sameRound && a.phase==='BETTING' && a.turn===me.id && a.street===b.street);
   if(mine && !wasMine){ Sfx.myTurn(); toast('👉 ถึงตาคุณแล้ว!','y'); }
+}
+
+/* ---------- ป๊อปอัพอัตโนมัติ: สรุปผู้ชนะ (ทุกเครื่อง) + เปิดไพ่กลาง ---------- */
+let sumAuto = true, sumSecs = 5, _sumTimer = null;
+
+function scheduleSummaryClose(){
+  clearTimeout(_sumTimer);
+  if(!sumAuto) return;
+  _sumTimer = setTimeout(()=>{
+    if(UI.modal && (UI.modal.k==='summary' || UI.modal.k==='reveal')){ UI.modal=null; render(); }
+  }, Math.max(2, sumSecs)*1000);
+}
+
+function maybePopups(prev){
+  if(UI.screen==='landing' || UI.screen==='boot') return;
+  const a = prev.curRound, b = S.curRound;
+  if(!b) return;
+  const busy = UI.modal && UI.modal.k!=='summary' && UI.modal.k!=='reveal';   // อย่าทับโมดัลที่ผู้ใช้เปิดค้างอยู่
+
+  // 1) จบรอบ → สรุปผู้ชนะเด้งทุกเครื่อง (ไม่ใช่แค่ Admin)
+  if(b.status==='SETTLED' && (!a || a.id!==b.id || a.status!=='SETTLED')){
+    if(!busy){ UI.modal={k:'summary',round:b}; scheduleSummaryClose(); render(); }
+    return;
+  }
+  // 2) จบรอบลงเงิน → เปิดไพ่กลาง (street 2=เปิด 3 ใบ, 3=ใบที่ 4, 4=ใบที่ 5)
+  if(a && a.id===b.id && b.phase==='BETTING' && b.street>a.street && b.street>=2 && b.street<=4){
+    if(!busy){ UI.modal={k:'reveal',street:b.street}; scheduleSummaryClose(); Sfx.chip(); render(); }
+    else toast('🃏 จบรอบลงเงินที่ '+(b.street-1)+' — เปิดไพ่กลางได้','y');
+  }
 }
 
 const TOAST_MAX = 3;                       // แสดงพร้อมกันได้มากสุดกี่อัน
@@ -1981,6 +2025,12 @@ function vSettings(){
     <div class="row"><span class="lbl">เสียงเตือนเมื่อถึงตาคุณ</span><span class="sp"></span>
       <button class="btn sec sm" data-act="sound">${Sfx.on?'🔔 เปิด':'🔕 ปิด'}</button></div>
     <div class="cap">มีเสียงและสั่นเตือนเมื่อ: ถึงตาคุณลงเดิมพัน · ถึงคิวลงกองกลาง · คุณชนะรอบ</div>
+    <div class="row"><span class="lbl">ปิดหน้าสรุปผู้ชนะอัตโนมัติ</span><span class="sp"></span>
+      <button class="btn sec sm" data-act="toggleSumAuto">${sumAuto?'✅ เปิด':'⬜ ปิด'}</button></div>
+    ${sumAuto?`<div class="row"><span class="lbl">ปิดหลังผ่านไป (วินาที)</span><span class="sp"></span>
+      <input id="s_sumsecs" value="${sumSecs}" inputmode="numeric" style="width:72px;text-align:center">
+      <button class="btn sec sm" data-act="saveSumSecs">บันทึก</button></div>`:''}
+    <div class="cap">ใช้กับหน้าสรุปผู้ชนะและหน้าเปิดไพ่ · ตั้งแยกของใครของมัน</div>
   </div>
   ${adm?`<button class="btn dgr" data-act="nav" data-s="settle">🏁 ปิดห้อง &amp; เคลียร์ยอด</button>`:''}
   <button class="btn ghost" data-act="leave">ออกจากห้อง (ไม่ลบข้อมูล)</button>`;
@@ -2078,6 +2128,7 @@ function renderModal(){
     <button class="btn ghost" data-act="closeModal">ปิด</button>`, true);
   else if(m.k==='confirm') html = mConfirm(m);
   else if(m.k==='summary') html = mSummary(m.round);
+  else if(m.k==='reveal') html = mReveal(m.street);
   box.innerHTML = html;
 }
 function mWrap(inner, mid){ return `<div class="mask ${mid?'mid':''}" data-act="closeMask"><div class="sheet" data-stop="1">${mid?'':'<div class="handle"></div>'}${inner}</div></div>`; }
@@ -2183,6 +2234,32 @@ function mMore(){
     <button class="btn ghost" data-act="closeModal">ปิด</button>`);
 }
 
+/** ไพ่ 1 ใบ — open = หงายค้าง · flip = พลิกไปพลิกมาไม่หยุด */
+function playCard(mode, i){
+  const suits=[['♠','#10151C'],['♥','#C8272D'],['♦','#C8272D'],['♣','#10151C']];
+  const [pip,col] = suits[i%4];
+  return `<div class="pcard ${mode}">
+    <div class="in">
+      <div class="bk"></div>
+      <div class="fc"><span class="pip" style="color:${col}">${pip}</span><span class="no">?</span></div>
+    </div></div>`;
+}
+/** ป๊อปอัพเปิดไพ่กลาง — street 2: เปิด 3 ใบ · 3: ใบที่ 4 · 4: ใบที่ 5 */
+function mReveal(street){
+  const opened = street===2 ? 0 : street===3 ? 3 : 4;   // ใบที่หงายค้างแล้ว
+  const flipping = street===2 ? 3 : 1;                   // ใบที่กำลังพลิก
+  const title = street===2 ? 'เปิดไพ่ 3 ใบ!' : street===3 ? 'เปิดไพ่ใบที่ 4!' : 'เปิดไพ่ใบที่ 5!';
+  let cards='';
+  for(let i=0;i<opened;i++) cards += playCard('open', i);
+  for(let i=0;i<flipping;i++) cards += playCard('flip', opened+i);
+  return mWrap(`
+    <b class="h1" style="text-align:center">🃏 ${title}</b>
+    <div class="cap" style="text-align:center">จบรอบลงเงินที่ ${street-1} แล้ว — เปิดไพ่กลางบนโต๊ะ แล้วเดิมพันรอบที่ ${street} ต่อ</div>
+    <div class="cards">${cards}</div>
+    <button class="btn" data-act="closeModal">เปิดแล้ว ไปเดิมพันต่อ</button>
+    ${sumAuto?`<div class="cap" style="text-align:center">ปิดเองใน ${sumSecs} วินาที</div>`:''}`, true);
+}
+
 function mConfirm(m){
   return mWrap(`<b class="h1" style="text-align:center">${esc(m.title)}</b>
     <div class="cap" style="text-align:center">${esc(m.text||'')}</div>
@@ -2228,7 +2305,8 @@ function mSummary(r){
       <tr style="font-weight:700"><td>รวม</td><td class="num">${fmtS(r.totalIn)}</td><td class="num">${fmtS(r.winners.reduce((a,w)=>a+w.amount,0))} ✅</td></tr>
     </tbody></table>
     <button class="btn" data-act="closeModal">ปิด</button>
-    ${isAdmin()?`<button class="btn gold" data-act="openRoundFromSummary">▶ เปิดรอบใหม่</button>`:''}`, true);
+    ${isAdmin()?`<button class="btn gold" data-act="openRoundFromSummary">▶ เปิดรอบใหม่</button>`:''}
+    ${sumAuto?`<div class="cap" style="text-align:center">ปิดเองใน ${sumSecs} วินาที (ตั้งได้ในตั้งค่า)</div>`:''}`, true);
 }
 
 /* ============================================================
@@ -2240,6 +2318,9 @@ const A = {
     LS.set('pk:theme',UI.theme); render(); },
   back(){ UI.screen='landing'; render(); },
   toggleBal(){ hideBal=!hideBal; LS.set('pk:hidebal', hideBal?'1':'0'); render(); },
+  toggleSumAuto(){ sumAuto=!sumAuto; LS.set('pk:sumauto', sumAuto?'1':'0'); render(); },
+  saveSumSecs(){ const v=Math.max(2,Math.min(60,parseInt($('#s_sumsecs').value)||5));
+    sumSecs=v; LS.set('pk:sumsecs',String(v)); toast('หน้าสรุปจะปิดเองใน '+v+' วินาที','g'); render(); },
   sound(){ const on=Sfx.toggle(); toast(on?'🔔 เปิดเสียงเตือนแล้ว':'🔕 ปิดเสียงเตือน','g'); render(); },
   forceLanding(){ LastRoom.clear(); Store.close(); S=blankState(); UI.screen='landing'; render(); },
   nav(d){ UI.screen=d.s; UI.form.winners=undefined; UI.modal=null; render(); },
@@ -2376,7 +2457,6 @@ const A = {
     const r = S.curRound;
     if(await cmd({t:'PAYOUT',winners})){
       UI.form.winners=undefined; UI.screen='home'; UI.tab='control';
-      setTimeout(()=>{ const rr=S.rounds.find(x=>x.id===r.id); if(rr){ UI.modal={k:'summary',round:rr}; render(); } },120);
     }
   },
 
@@ -2470,6 +2550,8 @@ document.addEventListener('input', e=>{
 /* ---------- boot ---------- */
 Sfx.init();
 hideBal = LS.get('pk:hidebal')==='1';
+sumAuto = LS.get('pk:sumauto')!=='0';
+sumSecs = Math.max(2, Math.min(60, parseInt(LS.get('pk:sumsecs'))||5));
 UI.theme = LS.get('pk:theme')||'dark';
 document.documentElement.setAttribute('data-theme', UI.theme==='light'?'light':'dark');
 if(sbCfg()) Store.mode='cloud';
