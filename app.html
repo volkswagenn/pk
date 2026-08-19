@@ -373,21 +373,32 @@ const Sfx = {
   ctx:null, on:true,
   init(){ this.on = LS.get('pk:sound') !== '0'; },
   /** ดังได้เฉพาะตอนหน้าเว็บเปิดอยู่จริงเท่านั้น — แท็บที่ซ่อน/ย่อไว้ต้องเงียบสนิท */
+  killed:false,          // ปิดถาวรเมื่อหน้าเว็บกำลังถูกปิด/แช่แข็ง
   canPlay(){
-    if(!this.on) return false;
-    try{ if(document.visibilityState !== 'visible' || document.hidden) return false; }catch(e){}
+    if(!this.on || this.killed) return false;
+    try{
+      // 1) แท็บถูกซ่อน / สลับแอปบนมือถือ
+      if(document.visibilityState !== 'visible' || document.hidden) return false;
+      // 2) หน้าต่างอยู่ข้างหลังหน้าต่างอื่น — ยังนับเป็น visible แต่ผู้ใช้ไม่ได้ดูอยู่
+      if(typeof document.hasFocus === 'function' && !document.hasFocus()) return false;
+    }catch(e){}
     return true;
+  },
+  /** ปิดเสียงถาวรสำหรับหน้านี้ (ใช้ตอนกำลังปิดหน้า) */
+  kill(){
+    this.killed = true;
+    try{ if(this.ctx){ this.ctx.close(); this.ctx=null; } }catch(e){}
   },
   /** หยุดเสียงที่กำลังจะดังทั้งหมด + พักเครื่องเสียง */
   silence(){
     try{ if(this.ctx && this.ctx.state==='running') this.ctx.suspend(); }catch(e){}
   },
-  unlock(){ if(this.ctx) return;
+  unlock(){ if(this.killed || !this.canPlay()) return; if(this.ctx){ if(this.ctx.state==='suspended') this.ctx.resume().catch(()=>{}); return; }
     try{ const C = window.AudioContext||window.webkitAudioContext; if(C) this.ctx = new C(); }catch(e){}
     if(this.ctx && this.ctx.state==='suspended') this.ctx.resume().catch(()=>{});
   },
   tone(freq, start, dur, vol, type){
-    if(!this.ctx) return;
+    if(!this.ctx || this.killed) return;
     const t0 = this.ctx.currentTime + start;
     const o = this.ctx.createOscillator(), g = this.ctx.createGain();
     o.type = type||'sine'; o.frequency.setValueAtTime(freq, t0);
@@ -397,7 +408,7 @@ const Sfx = {
     o.connect(g); g.connect(this.ctx.destination);
     o.start(t0); o.stop(t0+dur+0.02);
   },
-  buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} },
+  buzz(ms){ if(!this.canPlay()) return; try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} },
   /** ถึงตาคุณ — เสียงเด่น ต้องได้ยินชัดในวงที่เสียงดัง */
   myTurn(){ if(!this.canPlay()) return; this.unlock();
     this.tone(880,0,.16,.3); this.tone(1320,.17,.20,.3); this.tone(1760,.36,.26,.26);
@@ -1140,17 +1151,27 @@ function goQuiet(){
   if(Store.poll){ clearInterval(Store.poll); Store.poll=null; }
 }
 function goActive(){
+  if(Sfx.killed) return;           // หน้านี้ถูกปิดไปแล้ว อย่าปลุกอะไรกลับมา
   if(Store.mode==='cloud' && Store.sb && Store.code && !Store.poll){
     Store.poll = setInterval(()=>Store.pull(), 4000);
     Store.pull();                  // ดึงทันทีให้ทันเพื่อน
   }
   updateTurnNag();                 // ถ้ายังถึงตาเราอยู่ ค่อยเริ่มเตือนใหม่
 }
+/** ปิดหน้าเว็บ/แช่แข็ง → ตัดเสียงถาวร ไม่ให้มีทางดังได้อีก */
+function goDead(){ goQuiet(); Sfx.kill(); try{ Store.close(); }catch(e){} }
+
 document.addEventListener('visibilitychange', ()=>{ document.hidden ? goQuiet() : goActive(); });
-window.addEventListener('blur',  ()=>{ stopNag(); });      // สลับไปหน้าต่างอื่น = หยุดเตือนซ้ำ
-window.addEventListener('focus', ()=>{ updateTurnNag(); });
-window.addEventListener('pagehide', ()=>{ goQuiet(); try{ Store.close(); }catch(e){} });
-window.addEventListener('beforeunload', ()=>{ goQuiet(); try{ Store.close(); }catch(e){} });
+// หน้าต่างอยู่ข้างหลัง (ยังนับเป็น visible) → ต้องเงียบเหมือนกัน
+window.addEventListener('blur',  goQuiet);
+window.addEventListener('focus', goActive);
+// มือถือ: สลับแอป / ปิดแท็บ / ระบบแช่แข็งหน้าเว็บ
+window.addEventListener('pagehide', goDead);
+window.addEventListener('beforeunload', goDead);
+document.addEventListener('freeze', goDead);               // Chrome Page Lifecycle
+document.addEventListener('resume', ()=>{ Sfx.killed=false; goActive(); });
+// กลับมาจาก bfcache (กดย้อนกลับบนมือถือ) → เปิดเสียงใหม่ได้
+window.addEventListener('pageshow', e=>{ if(e.persisted){ Sfx.killed=false; goActive(); } });
 
 function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('โหลดไม่สำเร็จ: '+src)); document.head.appendChild(s); }); }
 let _sbClient = null;
