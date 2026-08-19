@@ -299,6 +299,10 @@ const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;'
 const B = n => Math.round(n*100);                       // บาท -> สตางค์
 const fmt = s => (s/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtS = s => (s/100).toLocaleString('th-TH',{maximumFractionDigits:2});
+/** ยอดเงินของตัวเอง — เป็น ••••• เมื่อกดซ่อน (กันคนข้างๆ เห็น) */
+let hideBal = false;
+const fmtBal  = s => hideBal ? '•••••' : fmt(s);
+const fmtBalS = s => hideBal ? '•••'   : fmtS(s);
 /** สำหรับใส่เป็นค่าตั้งต้นในช่องกรอก — ห้ามมีคอมมา ไม่งั้นอ่านกลับมาผิด */
 const fmtIn = s => String((s||0)/100);
 /** อ่านจำนวนเงินจากช่องกรอก ทนคอมมา ช่องว่าง และสัญลักษณ์บาท */
@@ -307,7 +311,7 @@ const parseAmt = v => {
   return isFinite(n) ? n : 0;
 };
 const initials = n => (n||'?').trim().slice(0,2);
-const roomCode = () => { const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let r=''; for(let i=0;i<6;i++) r+=A[Math.floor(Math.random()*A.length)]; return r; };
+const roomCode = () => String(Math.floor(1000 + Math.random()*9000));   // ตัวเลข 4 หลัก (1000–9999)
 const nowT = () => Date.now();
 
 /* ---------- ชิพโป๊กเกอร์ ---------- */
@@ -1215,13 +1219,6 @@ function vLanding(){
         <button class="lrow" data-act="openRoom" data-code="${c}" style="text-align:left">
           <span class="av2">🏠</span><span><b style="font:600 14px/1.2 var(--f)">${c}</b><br><span class="cap">แตะเพื่อเข้า</span></span>
           <span class="sp"></span><span class="mut">›</span></button>`).join('')}</div>`:''}
-    <div class="card col" style="margin-top:6px">
-      <div class="row"><b class="h2">โหมดการเชื่อมต่อ</b><span class="sp"></span>
-        <span class="pill">${Store.mode==='cloud'?'☁️ ข้ามเครื่อง':'💻 เครื่องนี้'}</span></div>
-      <div class="cap">• <b>เครื่องนี้</b> — เล่นข้ามแท็บ/หน้าต่างในเครื่องเดียวได้ทันที ไม่ต้องตั้งค่าอะไร<br>
-      • <b>ข้ามเครื่อง</b> — ต่อ Firebase ฟรี แล้วทุกคนเข้าห้องเดียวกันจากมือถือของตัวเองได้</div>
-      <button class="btn sec sm" data-act="cloudSetup" style="width:100%">⚙️ ตั้งค่าการเชื่อมต่อข้ามเครื่อง</button>
-    </div>
   </div>`;
 }
 
@@ -1268,8 +1265,9 @@ function vJoin(){
   return `
   <div class="hdr"><button data-act="back">‹</button><b>เข้าห้อง</b></div>
   <div class="body">
-    <div class="card col"><div class="lbl">รหัสห้อง 6 หลัก</div>
-      <input id="j_code" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;letter-spacing:6px;text-align:center;font-size:24px;font-weight:700">
+    <div class="card col"><div class="lbl">รหัสห้อง 4 หลัก</div>
+      <input id="j_code" placeholder="0000" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code"
+             style="letter-spacing:12px;text-align:center;font-size:30px;font-weight:800">
       <div class="cap">ขอรหัสจาก Admin ของวง</div></div>
     <div class="ban i">👁 เข้าไปแล้วคุณจะเป็น <b>ผู้ชม</b> ก่อน ต้องกด "ขอเข้าเล่น" แล้วให้ Admin อนุมัติจึงจะลงเงินได้</div>
   </div>
@@ -1311,8 +1309,9 @@ function vHeader(){
   const sync = Store.mode!=='cloud' ? '💻' : Store.rt ? '<span class="live"></span>' : Store.online ? '🔄' : '⚠️';
   return `<div class="hdr">
     ${canSee
-      ? `<div class="hwallet"><span class="l">💰 กระเป๋าของฉัน</span>
-           <span class="v num">฿${fmt(w.balance)}</span></div>`
+      ? `<div class="hwallet" data-act="toggleBal" style="cursor:pointer"><span class="l">💰 กระเป๋าของฉัน</span>
+           <span class="v num">฿${fmtBal(w.balance)}</span></div>
+         <button class="hbtn" data-act="toggleBal" title="${hideBal?'แสดงยอดเงิน':'ซ่อนยอดเงิน'}">${hideBal?'🙈':'👁️'}</button>`
       : `<b>${esc(S.room.name)}</b><span class="code">${S.room.code}</span>`}
     <span class="sp"></span>
     ${canSee?`<button class="hbtn" data-act="modal" data-m="topup" title="เติมเงิน">➕</button>
@@ -1551,7 +1550,7 @@ function betPanel(adminMode){
         ${canCheck?'⏭ ผ่าน (ไม่เสียเงิน)':'⏭ ผ่านไม่ได้ 🔒'}</button>
       <button class="btn sec sm" style="width:100%;height:40px" data-act="modal" data-m="custom">⌨ ใส่ยอดเอง</button>
     </div>
-    ${sel!==null?`<div class="cap num" style="text-align:center">เลือก ฿${fmtS(sel)} → จ่ายเพิ่ม ฿${fmtS(Math.max(0,sel-mineIn))} · เหลือ ฿${fmtS(Math.max(0,w.balance-(sel-mineIn)))}</div>`
+    ${sel!==null?`<div class="cap num" style="text-align:center">เลือก ฿${fmtS(sel)} → จ่ายเพิ่ม ฿${fmtS(Math.max(0,sel-mineIn))} · เหลือ ฿${fmtBalS(Math.max(0,w.balance-(sel-mineIn)))}</div>`
                :`<div class="cap" style="text-align:center">ตัวเลขบนชิพคือ <b>ยอดรวมของรอบนี้</b> ไม่ใช่ยอดที่จ่ายเพิ่ม</div>`}
   </div>`:''}
   `;
@@ -1572,7 +1571,7 @@ function vFooterAction(){
       <button class="btn big sec" style="width:104px;flex:none" data-act="anteSitout">พักรอบนี้<small>ไม่ลงเงิน</small></button>
       <button class="btn big gold" data-act="ante" ${poor?'disabled':''}>
         ${poor?'เงินไม่พอ (ต้องมี ฿'+fmtS(need)+')':'🪙 ลงกองกลาง ฿'+fmtS(need)}
-        ${poor?'':`<small>คงเหลือ ฿${fmtS(w.balance-need)}</small>`}</button>
+        ${poor?'':`<small>คงเหลือ ฿${fmtBalS(w.balance-need)}</small>`}</button>
     </div>`;
   }
 
@@ -1589,7 +1588,7 @@ function vFooterAction(){
     if(cur===0) main='ลงเดิมพัน ฿'+fmtS(sel)+' (คนแรก)';
     else if(sel===cur) main='ตาม ฿'+fmtS(sel);
     else main='ขึ้นเป็น ฿'+fmtS(sel);
-    sub = (mine>0?'จ่ายเพิ่ม ฿'+fmtS(cost)+' · ':'')+'คงเหลือ ฿'+fmtS(w.balance-cost);
+    sub = (mine>0?'จ่ายเพิ่ม ฿'+fmtS(cost)+' · ':'')+'คงเหลือ ฿'+fmtBalS(w.balance-cost);
   }
   return `<div class="foot">
     <button class="btn big sec" style="width:112px;flex:none" data-act="fold">หมอบการ์ด<small>ไม่เสียเงิน</small></button>
@@ -1805,7 +1804,7 @@ function vWallet(){
   return `
   <div class="card col" style="align-items:center;text-align:center">
     <span class="lbl">กระเป๋าของฉัน</span>
-    <span class="money num" style="margin:4px 0">฿${fmt(w.balance)}</span>
+    <span class="money num" style="margin:4px 0;cursor:pointer" data-act="toggleBal">฿${fmtBal(w.balance)} <span style="font-size:15px">${hideBal?'🙈':'👁️'}</span></span>
     <span class="cap">เบิกไปแล้ว ฿${fmtS(w.issuedIn)} · คืนแล้ว ฿${fmtS(w.returnedOut)}</span>
     <span class="pill" style="color:${profitOf(me.id)>=0?'var(--in)':'var(--out)'}">ได้/เสีย ${profitOf(me.id)>0?'+':''}${fmtS(profitOf(me.id))}</span>
   </div>
@@ -1920,7 +1919,7 @@ function vSettings(){
     <div class="row"><span class="lbl">ชื่อห้อง</span><span class="sp"></span><b>${esc(S.room.name)}</b></div>
     <div class="row"><span class="lbl">รหัสห้อง</span><span class="sp"></span><b class="code">${S.room.code}</b>
       <button class="btn sec sm" data-act="copyCode">คัดลอก</button></div>
-    <div class="row"><span class="lbl">โหมดซิงก์</span><span class="sp"></span><span class="pill">${Store.mode==='cloud'?'☁️ ข้ามเครื่อง':'💻 เครื่องนี้'}</span></div>
+    <div class="row"><span class="lbl">การเชื่อมต่อ</span><span class="sp"></span><span class="pill">${Store.mode==='cloud'?'🟢 ออนไลน์':'💻 ออฟไลน์ (เครื่องนี้)'}</span></div>
   </div>
   ${adm?`<div class="card col"><b class="h2">กติกาเงิน</b>
     <label class="row"><span class="lbl">ให้ยืมเงินกันได้</span><span class="sp"></span>
@@ -2036,14 +2035,12 @@ function renderModal(){
   else if(m.k==='repay') html = mTransfer('repay');
   else if(m.k==='manage') html = mManage(m.mid);
   else if(m.k==='more') html = mMore();
-  else if(m.k==='cloud') html = mCloud();
-  else if(m.k==='sync') html = mWrap(`<b class="h1" style="text-align:center">สถานะการซิงก์</b>
+  else if(m.k==='sync') html = mWrap(`<b class="h1" style="text-align:center">สถานะการเชื่อมต่อ</b>
     <div class="card col" style="gap:7px">
       ${m.rows.map(([k,v])=>`<div class="row"><span class="lbl">${esc(k)}</span><span class="sp"></span>
         <span class="cap" style="text-align:right;color:var(--tp)">${esc(v)}</span></div>`).join('')}
     </div>
-    ${Store.mode==='cloud'?`<button class="btn sec" data-act="syncNow">🔄 ดึงข้อมูลล่าสุดเดี๋ยวนี้</button>`
-      :`<button class="btn sec" data-act="cloudSetup">⚙️ ตั้งค่าเล่นข้ามเครื่อง</button>`}
+    ${Store.mode==='cloud'?`<button class="btn sec" data-act="syncNow">🔄 ดึงข้อมูลล่าสุดเดี๋ยวนี้</button>`:''}
     <button class="btn ghost" data-act="closeModal">ปิด</button>`, true);
   else if(m.k==='confirm') html = mConfirm(m);
   else if(m.k==='summary') html = mSummary(m.round);
@@ -2152,31 +2149,6 @@ function mMore(){
     <button class="btn ghost" data-act="closeModal">ปิด</button>`);
 }
 
-function mCloud(){
-  const c = sbCfg();
-  if(c && c.baked) return mWrap(`<b class="h1" style="text-align:center">☁️ เล่นข้ามเครื่อง</b>
-    <div class="ban g">✅ เว็บนี้ต่อ Supabase ไว้แล้ว — ทุกคนที่เปิดลิงก์นี้เล่นห้องเดียวกันได้เลย</div>
-    <div class="cap" style="word-break:break-all">${esc(c.url)}</div>
-    <button class="btn ghost" data-act="closeModal">ปิด</button>`);
-  return mWrap(`<b class="h1" style="text-align:center">☁️ เล่นข้ามเครื่อง</b>
-    <div class="cap">ไฟล์ HTML ไฟล์เดียวซิงก์ข้ามเครื่องเองไม่ได้ ต้องมีตัวกลาง — ใช้ <b>Supabase</b> ฟรี ไม่ต้องรัน server</div>
-    <div class="card col" style="gap:5px"><b class="lbl">วิธีตั้งค่า (ทำครั้งเดียว ~3 นาที)</b>
-      <span class="cap">1. เข้า <b>supabase.com</b> → New project (ฟรี)</span>
-      <span class="cap">2. เมนู <b>SQL Editor</b> → วางสคริปต์จากไฟล์ <b>supabase-schema.sql</b> → Run</span>
-      <span class="cap">3. เมนู <b>Project Settings → API</b> → คัดลอก <b>Project URL</b> และ <b>anon public key</b></span>
-      <span class="cap">4. วาง 2 ค่านั้นในช่องล่างนี้ → บันทึก</span>
-      <span class="cap">5. ส่งไฟล์นี้ให้เพื่อน (หรือ deploy ขึ้น Vercel ตาม <b>DEPLOY.md</b>) — ทุกคนใช้ค่าชุดเดียวกัน</span>
-    </div>
-    <div class="col" style="gap:7px">
-      <input id="sb_url" placeholder="https://xxxxxxxx.supabase.co" value="${esc((c&&c.url)||'')}">
-      <input id="sb_key" placeholder="anon public key (ขึ้นต้นด้วย eyJ...)" value="${esc((c&&c.key)||'')}">
-    </div>
-    <div class="ban y">⚠ anon key เปิดให้ใครก็ตามที่มีลิงก์อ่าน/เขียนตารางนี้ได้ — เหมาะกับเล่นกับเพื่อน ไม่ควรใส่ข้อมูลสำคัญ</div>
-    <div class="g2"><button class="btn ghost" data-act="closeModal">ปิด</button>
-      <button class="btn" data-act="saveCloud">บันทึก &amp; ใช้โหมดข้ามเครื่อง</button></div>
-    ${c?`<button class="btn ghost" data-act="clearCloud">กลับไปใช้โหมดเครื่องนี้</button>`:''}`);
-}
-
 function mConfirm(m){
   return mWrap(`<b class="h1" style="text-align:center">${esc(m.title)}</b>
     <div class="cap" style="text-align:center">${esc(m.text||'')}</div>
@@ -2233,6 +2205,7 @@ const A = {
     document.documentElement.setAttribute('data-theme', UI.theme==='light'?'light':'dark');
     LS.set('pk:theme',UI.theme); render(); },
   back(){ UI.screen='landing'; render(); },
+  toggleBal(){ hideBal=!hideBal; LS.set('pk:hidebal', hideBal?'1':'0'); render(); },
   sound(){ const on=Sfx.toggle(); toast(on?'🔔 เปิดเสียงเตือนแล้ว':'🔕 ปิดเสียงเตือน','g'); render(); },
   forceLanding(){ LastRoom.clear(); Store.close(); S=blankState(); UI.screen='landing'; render(); },
   nav(d){ UI.screen=d.s; UI.form.winners=undefined; UI.modal=null; render(); },
@@ -2267,8 +2240,8 @@ const A = {
     toast('สร้างห้องแล้ว รหัส '+code,'g');
   },
   async doJoin(){
-    const code = $('#j_code').value.trim().toUpperCase();
-    if(code.length!==6) return toast('รหัสห้องต้อง 6 หลัก','r');
+    const code = $('#j_code').value.replace(/\D/g,'');
+    if(code.length!==4) return toast('รหัสห้องต้องเป็นตัวเลข 4 หลัก','r');
     toast('กำลังเข้าห้อง…','y');
     try{ await Store.open(code, Store.mode); }catch(e){ return toast(e.message,'r'); }
     S = reduce(Store.events);
@@ -2429,23 +2402,6 @@ const A = {
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
     a.download='ledger-'+S.room.code+'.csv'; a.click(); toast('ดาวน์โหลดแล้ว','g'); },
 
-  cloudSetup(){ UI.modal={k:'cloud'}; render(); },
-  async saveCloud(){
-    const url = document.getElementById('sb_url').value.trim().replace(/\/+$/,'');
-    const key = document.getElementById('sb_key').value.trim();
-    if(!/^https:\/\/.+\.supabase\.(co|in)$/.test(url)) return toast('Project URL ไม่ถูกต้อง (ต้องเป็น https://xxx.supabase.co)','r');
-    if(key.length<40) return toast('anon key ดูสั้นเกินไป ลองคัดลอกใหม่','r');
-    LS.set('pk:sb', JSON.stringify({url,key}));
-    _sbClient = null;
-    try{
-      const sb = await getSupabase({url,key});
-      const {error} = await sb.from(SB_TABLE).select('id').limit(1);
-      if(error) throw new Error(error.message+' — รันสคริปต์ supabase-schema.sql แล้วหรือยัง?');
-      Store.mode='cloud';
-      toast('เชื่อมต่อ Supabase สำเร็จ — โหมดข้ามเครื่องพร้อมใช้','g');
-    }catch(e){ LS.del('pk:sb'); toast('เชื่อมต่อไม่สำเร็จ: '+e.message,'r'); }
-    UI.modal=null; render(); },
-  clearCloud(){ LS.del('pk:sb'); _sbClient=null; Store.mode='local'; UI.modal=null; toast('กลับไปใช้โหมดเครื่องนี้','y'); render(); },
 };
 function getFbCfg(){ return sbCfg(); }
 
@@ -2479,6 +2435,7 @@ document.addEventListener('input', e=>{
 
 /* ---------- boot ---------- */
 Sfx.init();
+hideBal = LS.get('pk:hidebal')==='1';
 UI.theme = LS.get('pk:theme')||'dark';
 document.documentElement.setAttribute('data-theme', UI.theme==='light'?'light':'dark');
 if(sbCfg()) Store.mode='cloud';
