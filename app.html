@@ -1155,6 +1155,7 @@ function refresh(){
   const firstLoad = !prev.room;              // เพิ่งเปิดห้อง — ไม่ต้องเด้งย้อนหลังทั้งหมด
   S = reduce(Store.events);
   notifyMyTurn(prev);
+  updateTurnNag();
   if(!firstLoad) maybePopups(prev);
   if(!firstLoad && prev.feed && S.feed.length>prev.feed.length && UI.screen!=='landing'){
     const added = S.feed.slice(prev.feed.length).filter(f=>f.kind!=='silent');
@@ -1223,6 +1224,28 @@ function notifyMyTurn(prev){
   const mine = b.turn===me.id;
   const wasMine = !!(sameRound && a.phase==='BETTING' && a.turn===me.id && a.street===b.street);
   if(mine && !wasMine){ Sfx.myTurn(); toast('👉 ถึงตาคุณแล้ว!','y'); }
+}
+
+/* ---------- เตือนซ้ำทุก 5 วิ ถ้าถึงตาเราแล้วยังไม่กดลง ---------- */
+let _nag = null;
+function updateTurnNag(){
+  const r = S.curRound, seat = r ? seatOf(r, me.id) : null;
+  const anteDue = r && r.status==='OPEN' && seat && seat.state==='IN'
+                  && r.phase==='ANTE' && seat.ante<=0;
+  const betDue  = r && r.status==='OPEN' && seat && seat.state==='IN'
+                  && r.phase==='BETTING' && r.turn===me.id && needsAct(r,seat);
+  if((anteDue || betDue) && !_nag){
+    _nag = setInterval(()=>{
+      // เช็คซ้ำก่อนดังทุกครั้ง — กันดังค้างหลังลงไปแล้ว
+      const rr = S.curRound, ss = rr ? seatOf(rr, me.id) : null;
+      const stillAnte = rr && rr.status==='OPEN' && ss && ss.state==='IN' && rr.phase==='ANTE' && ss.ante<=0;
+      const stillBet  = rr && rr.status==='OPEN' && ss && ss.state==='IN' && rr.phase==='BETTING' && rr.turn===me.id && needsAct(rr,ss);
+      if(stillAnte) Sfx.ante();
+      else if(stillBet) Sfx.myTurn();
+      else { clearInterval(_nag); _nag=null; }
+    }, 5000);
+  }
+  if(!(anteDue || betDue) && _nag){ clearInterval(_nag); _nag=null; }
 }
 
 /* ---------- ป๊อปอัพอัตโนมัติ: สรุปผู้ชนะ (ทุกเครื่อง) + เปิดไพ่กลาง ---------- */
