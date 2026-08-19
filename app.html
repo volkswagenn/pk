@@ -130,6 +130,32 @@ input:focus,select:focus{border-color:var(--brand)}
 
 /* player rings */
 .rings{display:flex;gap:7px;overflow-x:auto;padding:2px 1px 3px;flex:0 0 auto;min-height:78px;align-items:flex-start}
+/* ---- โต๊ะโป๊กเกอร์ ---- */
+.ptable{position:relative;flex:0 0 auto;height:min(340px,52vh);min-height:250px;margin:2px 0}
+.felt{position:absolute;left:11%;top:14%;right:11%;bottom:14%;border-radius:50%;
+  background:radial-gradient(ellipse at 50% 42%, #1d6b47 0%, #14503a 55%, #0e3d2c 100%);
+  border:5px solid #3a2a17;
+  box-shadow:inset 0 0 34px rgba(0,0,0,.5), inset 0 0 0 2px rgba(255,255,255,.06), 0 8px 24px rgba(0,0,0,.45)}
+[data-theme="light"] .felt{background:radial-gradient(ellipse at 50% 42%, #2c8a5e 0%, #1e6b48 55%, #175539 100%);border-color:#8a6a45}
+.pcenter{position:absolute;left:50%;top:47%;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;max-width:62%;pointer-events:none}
+.pcenter .plbl{font:600 10.5px/1 var(--f);color:rgba(255,235,190,.85)}
+.pcenter .pamt{font:700 clamp(24px,7.5vw,34px)/1 var(--f);color:#FFD98A;text-shadow:0 2px 8px rgba(0,0,0,.55)}
+.pcenter .psub{font:500 9.5px/1.35 var(--f);color:rgba(255,255,255,.75);max-width:100%}
+.pseat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:58px}
+.pseat .av{width:38px;height:38px;border-radius:99px;background:var(--bg-surface);border:2.5px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font:700 11.5px/1 var(--f);color:var(--tp);
+  box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.pseat .nm{font:500 9.5px/1.1 var(--f);color:var(--ts);max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.pseat .bg{font:700 9.5px/1 var(--f);padding:3px 6px;border-radius:99px;border:1px solid var(--border);color:var(--tm);
+  background:var(--bg-surface);white-space:nowrap}
+.pseat .pos{position:absolute;top:-4px;left:1px;z-index:2;width:15px;height:15px;border-radius:99px;
+  background:var(--bg-inset);border:1px solid var(--border);font:700 8.5px/13px var(--f);text-align:center;color:var(--tm)}
+.pseat.turn .pos{background:var(--pending);color:#241705;border-color:var(--pending)}
+.pseat.fold{opacity:.45}
+.pseat.fold .av{border-style:dashed;border-color:#66717F;background:var(--bg-inset);color:var(--tm)}
+.pseat.me .av{box-shadow:0 0 0 3px rgba(34,197,138,.25),0 2px 8px rgba(0,0,0,.4)}
 .pr{display:flex;flex-direction:column;align-items:center;gap:5px;flex:0 0 auto;width:56px}
 .pr .av{width:40px;height:40px;border-radius:99px;background:var(--bg-surface);border:2.5px solid var(--border);display:flex;align-items:center;justify-content:center;font:700 12px/1 var(--f);color:var(--tp)}
 .pr .nm{font:500 10px/1.1 var(--f);color:var(--ts);text-align:center;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1599,7 +1625,92 @@ function vNav(){
   </div>`;
 }
 
-/* ---------- ring row (แกนกลางของ v2) ---------- */
+/** แถบรายละเอียดกองแบบย่อ ใช้คู่กับโต๊ะ (ยอดใหญ่อยู่กลางโต๊ะแล้ว ไม่แสดงซ้ำ) */
+function potDetails(r){
+  if(!r) return '';
+  const anteSum = r.seats.reduce((a,s)=>a+(s.ante||0),0);
+  const curSum  = r.seats.reduce((a,s)=>a+(s.contributed||0),0);
+  const multi = (r.streets&&r.streets.length) || (S.room.settings.multiStreet && r.phase==='BETTING');
+  const note = actionNotation(r);
+  if(!multi && !note) return '';
+  return `<div class="card col" style="gap:6px;padding:8px 11px">
+    ${multi?`<div class="streets" style="margin:0">
+      ${anteSum?`<span class="st done"><i>ลงกอง</i><b class="num">฿${fmtS(anteSum)}</b></span>`:''}
+      ${(r.streets||[]).map(x=>`<span class="st done"><i>รอบ ${x.index}</i><b class="num">฿${fmtS(x.total)}</b></span>`).join('')}
+      <span class="st now"><i>รอบ ${r.street} ▶</i><b class="num">฿${fmtS(curSum)}</b></span>
+    </div>`:''}
+    ${note?`<div class="notation num">${esc(note)}</div>`:''}
+  </div>`;
+}
+
+/* ---------- โต๊ะโป๊กเกอร์ — ผู้เล่นเรียงรอบวงรี กองกลางอยู่กลางโต๊ะ ---------- */
+function seatVisual(r, s){
+  // คืนข้อมูลการแสดงผลของที่นั่ง (ใช้ร่วมกันทั้งโต๊ะและแถวแบบเดิม)
+  const m = S.members[s.memberId]; if(!m) return null;
+  const isMe = s.memberId===me.id;
+  const isTurn = r.turn===s.memberId && r.status==='OPEN';
+  let ring='var(--border)', badge='', bstyle='', cls='';
+  if(s.state==='FOLDED'){ cls='fold'; badge='หมอบ'; }
+  else if(s.state==='SITTING_OUT'){ cls='fold'; badge='พัก'; }
+  else if(r.phase==='ANTE'){
+    if(s.ante>0){ ring='var(--pot)'; badge='฿'+fmtS(s.ante); bstyle='background:var(--pot);color:#241705;border-color:var(--pot)'; }
+    else { badge='รอลงกอง'; if(s.memberId===r.starterId) ring='var(--pending)'; }
+  }
+  else if(s.contributed>0){
+    const t=r.tiers[s.tier]||{color:'var(--border)',ink:'#000'}; ring=t.color;
+    badge='฿'+fmtS(s.contributed); bstyle=`background:${t.color};color:${t.ink};border-color:${t.color}`;
+    if(needsAct(r,s)) badge += ' ↑';
+  }
+  else if(s.acted && !needsAct(r,s)){ badge='ผ่าน'; }
+  else { badge = isTurn?(isMe?'ตาคุณ':'ตานี้'):'รอลง'; if(m.role==='ADMIN'||m.role==='CO_ADMIN') ring='var(--admin)'; }
+  if(isMe && s.state==='IN') cls+=' me';
+  if(isTurn) cls+=' turn';
+  const face = (m.role==='ADMIN'||m.role==='CO_ADMIN') ? '👑' : (isMe?'คุณ':esc(initials(m.name)));
+  return {m,isMe,isTurn,ring,badge,bstyle,cls,face};
+}
+
+function pokerTable(r){
+  if(!r) return '';
+  const seats = r.seats.filter(s=>s.state!=='SITTING_OUT')
+                       .slice().sort((a,b)=>a.pos-b.pos);
+  if(!seats.length) return '';
+  // หมุนให้ "คุณ" อยู่ล่างสุดกลางจอเสมอ (ถ้าเราอยู่ในวง)
+  const myIdx = seats.findIndex(s=>s.memberId===me.id);
+  const start = myIdx>=0 ? myIdx : 0;
+  const n = seats.length;
+  const spots = seats.map((s,i)=>{
+    const k = (i - start + n) % n;                 // 0 = ตัวเอง (ล่างกลาง) แล้ววนตามเข็ม
+    const ang = (Math.PI/2) + (k/n)*Math.PI*2;    // เริ่มที่ 90° (ล่าง) วนตามเข็ม
+    const x = 50 + 41*Math.cos(ang);              // % ของกว้าง (วงรี: กว้าง 41%, สูง 38%)
+    const y = 50 + 38*Math.sin(ang);
+    return {s, x, y};
+  });
+  // สรุปกลางโต๊ะ
+  const potLabel = (r.streets&&r.streets.length)||(S.room.settings.multiStreet&&r.phase==='BETTING') ? 'กองกลางสะสม' : 'กองกลาง';
+  const sub = r.phase==='ANTE'
+    ? 'เฟสลงกองกลาง · รอ '+r.seats.filter(x=>x.state==='IN'&&x.ante<=0).map(x=>esc(nameOf(S,x.memberId))).slice(0,3).join(' กับ ')
+    : r.turn ? 'ตาของ '+esc(nameOf(S,r.turn))+(r.currentBet>0?' · ต้องตามถึง ฿'+fmtS(r.currentBet):'')
+    : r.complete ? 'ครบตาแล้ว' : '';
+  return `<div class="ptable">
+    <div class="felt"></div>
+    <div class="pcenter">
+      <span class="plbl">${potLabel}</span>
+      <span class="pamt num">฿${fmtS(r.pot)}</span>
+      ${sub?`<span class="psub">${sub}</span>`:''}
+    </div>
+    ${spots.map(({s,x,y})=>{
+      const v = seatVisual(r,s); if(!v) return '';
+      return `<div class="pseat ${v.cls}" style="left:${x}%;top:${y}%">
+        <span class="pos">${s.pos}</span>
+        <span class="av" style="border-color:${v.ring}${v.isTurn?';box-shadow:0 0 0 3px rgba(245,178,61,.5)':''}">${v.face}</span>
+        <span class="nm">${esc(v.m.name)}</span>
+        <span class="bg" style="${v.bstyle}">${v.badge}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+/* ---------- ring row (แถวแนวนอนแบบเดิม — ใช้ในจอ Admin คุมห้อง) ---------- */
 function ringRow(r, opts){
   opts = opts||{};
   if(!r) return '';
@@ -1713,29 +1824,10 @@ function betPanel(adminMode){
     const pct = inSeats.length ? Math.round(done.length/inSeats.length*100) : 0;
     return `
     ${myPend.length?`<button class="notice" data-act="openPend">🔔 ${myPend.length} คำขอรอคุณตอบ ›</button>`:''}
-  
-    <div class="antebox">
-      <div class="row">
-        <div class="col" style="gap:2px">
-          <span class="lbl pot">🪙 ลงเงินกองกลาง · รอบที่ ${r.index}</span>
-          <span class="money-l pot num">คนละ ฿${fmtS(need)}</span>
-        </div>
-        <div class="sp"></div>
-        <div class="col" style="gap:2px;text-align:right">
-          <span class="money-l num ${pct===100?'in':''}">${done.length}/${inSeats.length}</span>
-          <span class="cap">${pct===100?'ครบแล้ว ✅':'ยังไม่ครบ'}</span>
-        </div>
-      </div>
-      <div class="prog"><i style="width:${pct}%"></i></div>
-      <div class="ticks">
-        ${r.seats.map(x=>{ const m=S.members[x.memberId]; if(!m) return '';
-          const out = x.state!=='IN';
-          return `<div class="tick ${x.ante>0?'ok':''} ${out?'out':''}">
-            <span class="box">${out?'💤':(x.ante>0?'✓':'…')}</span>
-            <span class="nm">${x.memberId===me.id?'คุณ':esc(m.name)}</span></div>`;}).join('')}
-      </div>
-      ${r.starterId?`<div class="cap">ครบแล้วเริ่มเดิมพันที่ <b>${esc(nameOf(S,r.starterId))}</b>${S.lastWinnerId===r.starterId?' 🏆 (ชนะรอบก่อน)':''}</div>`:''}
-    </div>
+    <div class="ban i" style="gap:6px">🪙 <b>ลงเงินกองกลาง คนละ ฿${fmtS(need)}</b>
+      <span class="sp"></span><span class="num ${pct===100?'in':''}">${done.length}/${inSeats.length}</span></div>
+    ${pokerTable(r)}
+    ${r.starterId?`<div class="cap" style="text-align:center">ครบแล้วเริ่มเดิมพันที่ <b>${esc(nameOf(S,r.starterId))}</b>${S.lastWinnerId===r.starterId?' 🏆 (ชนะรอบก่อน)':''}</div>`:''}
 
     ${paid
       ? `<div class="turnbox done"><span class="who">✅ คุณลงแล้ว ฿${fmtS(s.ante)}</span>
@@ -1806,8 +1898,8 @@ function betPanel(adminMode){
   ${head}
   ${box}
   ${raise}
-  ${potCard(r)}
-  ${ringRow(r)}
+  ${pokerTable(r)}
+  ${potDetails(r)}
   ${canAct?`
   <div class="col" style="gap:7px">
     ${quick.length?`<div class="row" style="gap:6px;flex-wrap:wrap">
