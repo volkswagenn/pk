@@ -146,6 +146,16 @@ input:focus,select:focus{border-color:var(--brand)}
 .breakdown .tot{margin-left:auto;background:var(--pot);border-color:var(--pot)}
 .breakdown .tot i{color:rgba(36,23,5,.72)}
 .breakdown .tot b{color:#241705}
+/* เงินแต่ละรอบลงเงิน — กล่องไล่เรียงซ้ายไปขวา รอบปัจจุบันขอบทองสว่าง */
+.streets{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.st{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:56px;flex:1;
+  padding:5px 7px;border-radius:9px;background:rgba(0,0,0,.22);border:1.5px solid transparent}
+[data-theme="light"] .st{background:rgba(0,0,0,.06)}
+.st i{font:600 9.5px/1 var(--f);font-style:normal;color:var(--tm)}
+.st b{font:700 14px/1.1 var(--f);color:var(--ts)}
+.st.done b{color:var(--tp)}
+.st.now{border-color:var(--pot);background:rgba(212,162,76,.14)}
+.st.now i,.st.now b{color:var(--pot)}
 .notation{font:600 10.5px/1.5 ui-monospace,Menlo,monospace;color:var(--pot);background:rgba(0,0,0,.18);border-radius:8px;padding:6px 8px;word-break:break-all}
 [data-theme="light"] .notation{background:rgba(0,0,0,.05)}
 .legend{display:flex;flex-wrap:wrap;gap:8px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:5px 9px}
@@ -997,7 +1007,7 @@ const Store = {
     this.sb = await getSupabase(cfg);
     const {data,error} = await this.sb.from(SB_TABLE).select('id,event').eq('room_code',code).order('id',{ascending:true});
     if(error) throw new Error('อ่านข้อมูลห้องไม่ได้: '+error.message);
-    this.events = (data||[]).map(r=>r.event);
+    this.events = (data||[]).map(r=>{ const e=r.event; e._ord=r.id; return e; });
     this.lastId = data && data.length ? data[data.length-1].id : 0;
 
     // ช่องทางที่ 1: Realtime (เร็วที่สุด — ได้ทันทีเป็นวินาที)
@@ -1007,8 +1017,10 @@ const Store = {
           payload => {
             const row = payload.new; if(!row || !row.event) return;
             if(row.id && row.id>this.lastId) this.lastId = row.id;
-            if(this.events.some(e=>e.id===row.event.id)) return;   // กัน echo ของตัวเอง
-            this.events.push(row.event); this.onChange && this.onChange();
+            const ex = this.events.find(e=>e.id===row.event.id);
+            if(ex){ ex._ord = row.id; this.sortEv(); this.onChange && this.onChange(); return; }  // echo ของตัวเอง → ใส่เลขลำดับให้
+            row.event._ord = row.id;
+            this.events.push(row.event); this.sortEv(); this.onChange && this.onChange();
           })
       .subscribe(s => { this.rt = (s==='SUBSCRIBED'); this.online = true; render(); });
 
@@ -1016,6 +1028,17 @@ const Store = {
     this.poll = setInterval(()=>this.pull(), 4000);
     this.online = true;
     this.onChange && this.onChange();
+  },
+
+  /** เรียง event ตามลำดับกลางของฐานข้อมูล — ทุกเครื่องต้องเห็นลำดับเดียวกันเป๊ะ
+      (ตัวที่เพิ่งส่งและยังไม่รู้เลขลำดับ ไปอยู่ท้ายชั่วคราว) */
+  sortEv(){
+    this.events.sort((a,b)=>{
+      const ao = a._ord ?? Number.MAX_SAFE_INTEGER, bo = b._ord ?? Number.MAX_SAFE_INTEGER;
+      if(ao !== bo) return ao - bo;
+      if(a.at !== b.at) return a.at - b.at;
+      return String(a.id) < String(b.id) ? -1 : 1;
+    });
   },
 
   /** ดึงเฉพาะ event ที่ใหม่กว่าที่มีอยู่ */
@@ -1027,12 +1050,14 @@ const Store = {
         .select('id,event').eq('room_code',this.code).gt('id',this.lastId).order('id',{ascending:true});
       if(error){ this.online=false; return; }
       this.online = true;
-      let added = false;
+      let changed = false;
       for(const r of (data||[])){
         if(r.id>this.lastId) this.lastId = r.id;
-        if(!this.events.some(e=>e.id===r.event.id)){ this.events.push(r.event); added = true; }
+        const ex = this.events.find(e=>e.id===r.event.id);
+        if(ex){ if(ex._ord==null){ ex._ord=r.id; changed=true; } }
+        else { r.event._ord=r.id; this.events.push(r.event); changed = true; }
       }
-      if(added) this.onChange && this.onChange();
+      if(changed){ this.sortEv(); this.onChange && this.onChange(); }
     } finally { this.pulling = false; }
   },
 
@@ -1051,14 +1076,18 @@ const Store = {
     this.events.push(ev);                    // แสดงผลทันที ไม่รอ network
     this.onChange && this.onChange();
     const {data,error} = await this.sb.from(SB_TABLE)
-      .insert({room_code:this.code, event:ev}).select('id');
+      .insert({room_code:this.code, event:{...ev, _ord:undefined}}).select('id');
     if(error){
       this.events = this.events.filter(e=>e.id!==ev.id);   // ส่งไม่สำเร็จ → ย้อนกลับ
       this.onChange && this.onChange();
       toast('ส่งข้อมูลไม่สำเร็จ: '+error.message,'r');
       throw error;
     }
-    if(data && data[0] && data[0].id>this.lastId) this.lastId = data[0].id;
+    if(data && data[0]){
+      ev._ord = data[0].id;                  // ได้เลขลำดับกลางแล้ว → เรียงใหม่ให้ตรงกับทุกเครื่อง
+      if(data[0].id>this.lastId) this.lastId = data[0].id;
+      this.sortEv(); this.onChange && this.onChange();
+    }
   },
   close(){
     if(this.bc){ this.bc.close(); this.bc=null; }
@@ -1295,9 +1324,10 @@ function vRoom(){
   // ขอบจอกระพริบเขียวเมื่อถึงตาเรา (เดิมพัน) หรือถึงคิวลงกองกลาง
   const r = S.curRound;
   const seat = r?seatOf(r,me.id):null;
+  // ติดเฉพาะเครื่องของคนที่ "ถึงตา" จริงๆ ทีละคนเท่านั้น (r.turn ชี้คนเดียวเสมอ)
   const myGo = r && r.status==='OPEN' && seat && seat.state==='IN' &&
     ( (r.phase==='ANTE' && seat.ante<=0) ||
-      (r.phase==='BETTING' && needsAct(r,seat) && (!S.room.settings.strict || r.turn===me.id)) );
+      (r.phase==='BETTING' && r.turn===me.id && needsAct(r,seat)) );
   return vHeader() + sub + `<div class="body">${body}</div>` + vFooterAction() + vNav()
     + (myGo?'<div class="glow"></div>':'');
 }
@@ -1404,25 +1434,25 @@ function potCard(r){
   const anteSum = r.seats.reduce((a,s)=>a+(s.ante||0),0);
   const curSum  = r.seats.reduce((a,s)=>a+(s.contributed||0),0);
   const multi = (r.streets&&r.streets.length) || (S.room.settings.multiStreet && r.phase==='BETTING');
-  /* บีบทุกอย่างเหลือ 2 แถว: แถวหลัก (ยอด+สถานะ) กับแถวยอดรายรอบแบบข้อความเดียว */
-  const streetLine = multi
-    ? [anteSum?'ลงกอง ฿'+fmtS(anteSum):null,
-       ...(r.streets||[]).map(x=>'ร.'+x.index+' ฿'+fmtS(x.total)),
-       'ร.'+r.street+' ฿'+fmtS(curSum)].filter(Boolean).join(' · ')
-    : '';
-  return `<div class="card" style="background:var(--pot-bg);border-color:var(--pot);padding:9px 12px">
+  /* ตอบ 3 คำถามในการ์ดเดียว: รวมเท่าไหร่ · ตอนนี้รอบไหน · แต่ละรอบที่ผ่านมาเท่าไหร่ */
+  return `<div class="card" style="background:var(--pot-bg);border-color:var(--pot);padding:10px 12px">
     <div class="row" style="gap:10px">
       <div class="col" style="gap:2px">
-        <span class="lbl pot" style="font-size:10.5px">🪙 กองกลาง${multi?' · รอบลงเงินที่ '+r.street:''}</span>
-        <span class="money pot num">฿${fmtS(r.pot)}</span>
+        <span class="lbl pot" style="font-size:10.5px">🪙 เงินรวมในกอง</span>
+        <span class="money pot num" style="font-size:32px">฿${fmtS(r.pot)}</span>
       </div>
       <div class="sp"></div>
       <div class="col" style="gap:2px;text-align:right">
-        <span class="h2" style="font-size:13px">ตามครบ ${c.bet} · รอ ${c.wait}</span>
-        <span class="cap">${c.folded?'หมอบ '+c.folded+' · ':''}${r.currentBet>0?'เดิมพัน ฿'+fmtS(r.currentBet):'ยังไม่มีใครลง'}</span>
+        ${multi?`<span class="h2" style="color:var(--pot)">รอบลงเงินที่ ${r.street}</span>`:''}
+        <span class="cap">ตามครบ ${c.bet} · รอ ${c.wait}${c.folded?' · หมอบ '+c.folded:''}</span>
+        <span class="cap">${r.currentBet>0?'ต้องตามถึง ฿'+fmtS(r.currentBet):'รอบนี้ยังไม่มีใครลง'}</span>
       </div>
     </div>
-    ${streetLine?`<div class="cap num" style="margin-top:5px;color:var(--pot)">${streetLine} <b>= ฿${fmtS(r.pot)}</b></div>`:''}
+    ${multi?`<div class="streets">
+      ${anteSum?`<span class="st done"><i>ลงกอง</i><b class="num">฿${fmtS(anteSum)}</b></span>`:''}
+      ${(r.streets||[]).map(x=>`<span class="st done"><i>รอบ ${x.index}</i><b class="num">฿${fmtS(x.total)}</b></span>`).join('')}
+      <span class="st now"><i>รอบ ${r.street} ▶</i><b class="num">฿${fmtS(curSum)}</b></span>
+    </div>`:''}
   </div>`;
 }
 
@@ -1516,19 +1546,23 @@ function betPanel(adminMode){
   /* กล่องบอกสถานะ — ตัวใหญ่ที่สุดบนจอ อ่านปราดเดียวรู้ว่าต้องทำอะไร */
   let box='';
   if(r && r.status==='OPEN'){
+    /* "ตาที่ i/n" — นับจากตำแหน่งคิวของคนที่ถือตาอยู่ ในบรรดาคนที่ยังเล่นรอบนี้ */
+    const inOrder = r.seats.filter(x=>x.state==='IN').sort((a,b)=>a.pos-b.pos);
+    const ti = r.turn ? inOrder.findIndex(x=>x.memberId===r.turn) : -1;
+    const turnLbl = ti>=0 ? 'ตาที่ '+(ti+1)+'/'+inOrder.length : '';
     if(s && s.state==='FOLDED')
       box = `<div class="turnbox"><span class="who">🃏 คุณหมอบรอบนี้แล้ว</span><span class="sub">รอดูผลรอบนี้ · ลงใหม่ได้รอบหน้า</span></div>`;
     else if(s && s.state==='SITTING_OUT')
       box = `<div class="turnbox"><span class="who">💤 คุณพักรอบนี้</span><span class="sub">ลงได้ในรอบถัดไป</span></div>`;
     else if(s && !needsAct(r,s))
       box = `<div class="turnbox done"><span class="who">✅ คุณลงครบแล้ว ฿${fmtS(s.contributed)}</span>
-             <span class="sub">${r.turn?'รอ '+esc(nameOf(S,r.turn)):'รอคนอื่นลงให้ครบ'}</span></div>`;
+             <span class="sub">${r.turn?'รอ '+esc(nameOf(S,r.turn))+(turnLbl?' ('+turnLbl+')':''):'รอคนอื่นลงให้ครบ'}</span></div>`;
     else if(canAct)
-      box = `<div class="turnbox mine"><span class="who">👉 ตาคุณแล้ว!</span>
+      box = `<div class="turnbox mine"><span class="who">👉 ตาคุณแล้ว! ${turnLbl?'('+turnLbl+')':''}</span>
              <span class="sub">${cur>mineIn?'ต้องตามให้ถึง ฿'+fmtS(cur)+' (จ่ายเพิ่ม ฿'+fmtS(cur-mineIn)+') · ขึ้นก็ได้ · หรือหมอบ'
                                         :'ยังไม่มีใครลง — ผ่านฟรี หรือเปิดเดิมพันก่อนก็ได้'}</span></div>`;
     else
-      box = `<div class="turnbox"><span class="who">⏳ ตาของ ${esc(nameOf(S,r.turn)||'—')}</span>
+      box = `<div class="turnbox"><span class="who">⏳ ตาของ ${esc(nameOf(S,r.turn)||'—')} ${turnLbl?'('+turnLbl+')':''}</span>
              <span class="sub">รอสักครู่ เดี๋ยวถึงตาคุณระบบจะส่งเสียงเตือน</span></div>`;
   }
 
