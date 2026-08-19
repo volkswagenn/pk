@@ -43,25 +43,41 @@ input:focus,select:focus{border-color:var(--brand)}
 ::-webkit-scrollbar{width:0;height:0}
 
 /* layout */
-.hdr{flex:0 0 auto;height:56px;display:flex;align-items:center;gap:10px;padding:0 14px;border-bottom:1px solid var(--border);background:var(--bg-surface);z-index:20}
+.hdr{flex:0 0 auto;height:60px;display:flex;align-items:center;gap:9px;padding:0 12px;border-bottom:1px solid var(--border);background:var(--bg-surface);z-index:20}
 .hdr b{font:700 15px/1 var(--f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hdr .code{font:600 11px/1 var(--f);color:var(--ts);background:var(--chip);padding:5px 8px;border-radius:6px;letter-spacing:1px}
+/* กระเป๋าเงินบน top bar */
+.hwallet{display:flex;flex-direction:column;gap:1px;min-width:0}
+.hwallet .l{font:600 9.5px/1 var(--f);color:var(--tm)}
+.hwallet .v{font:800 21px/1 var(--f);letter-spacing:-.3px}
+.hbtn{width:36px;height:36px;border-radius:11px;background:var(--bg-inset);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;font-size:16px;flex:none;position:relative}
+.hbtn .dot2{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;border-radius:8px;
+  background:var(--danger);color:#fff;font:700 9.5px/16px var(--f);text-align:center;padding:0 3px}
+/* แถบแท็บ Admin ตรึงใต้ top bar */
+.subbar{flex:0 0 auto;padding:7px 12px;background:var(--bg-surface);border-bottom:1px solid var(--border)}
+/* ขอบจอกระพริบตอนถึงตา — 2 ชั้น ไม่บังเนื้อหา */
+.glow{position:absolute;inset:0;pointer-events:none;z-index:45;
+  box-shadow:inset 0 0 0 3px rgba(34,197,138,.95), inset 0 0 26px 7px rgba(34,197,138,.42);
+  animation:glowP 1.25s ease-in-out infinite}
+@keyframes glowP{0%,100%{opacity:.3}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.glow{animation:none;opacity:.75}}
 .body{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
-  padding:12px 14px 20px;display:flex;flex-direction:column;gap:11px}
-.nav{flex:0 0 auto;height:66px;border-top:1px solid var(--border);background:var(--bg-surface);display:grid;align-items:center;padding-bottom:env(safe-area-inset-bottom)}
+  padding:9px 11px 12px;display:flex;flex-direction:column;gap:8px}
+.nav{flex:0 0 auto;height:60px;border-top:1px solid var(--border);background:var(--bg-surface);display:grid;align-items:center;padding-bottom:env(safe-area-inset-bottom)}
 .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;font:600 10.5px/1 var(--f);color:var(--tm);padding:6px 0;position:relative}
 .nav button .i{font-size:19px}
 .nav button.on{color:var(--brand4)}
 .dot{position:absolute;top:2px;right:50%;transform:translateX(20px);min-width:17px;height:17px;border-radius:9px;background:var(--danger);color:#fff;font:700 10px/17px var(--f);text-align:center;padding:0 4px}
-.foot{flex:0 0 auto;padding:9px 14px;display:flex;gap:8px;background:var(--bg-base);border-top:1px solid var(--border)}
+.foot{flex:0 0 auto;padding:7px 11px;display:flex;gap:8px;background:var(--bg-base);border-top:1px solid var(--border)}
 
 /* cards + text */
-.card{background:var(--bg-surface);border:1px solid var(--border);border-radius:14px;padding:12px}
+.card{background:var(--bg-surface);border:1px solid var(--border);border-radius:13px;padding:10px 11px}
 .lbl{font:600 12px/1.3 var(--f);color:var(--ts)}
 .cap{font:400 11px/1.45 var(--f);color:var(--tm)}
 .h1{font:700 19px/1.3 var(--f)}
 .h2{font:700 14px/1.3 var(--f)}
-.money{font:700 34px/1 var(--f)}
+.money{font:700 28px/1 var(--f)}
 .money-l{font:700 26px/1 var(--f)}
 .money-s{font:700 16px/1 var(--f)}
 .row{display:flex;align-items:center;gap:10px}
@@ -73,7 +89,7 @@ input:focus,select:focus{border-color:var(--brand)}
 .btn{height:52px;border-radius:12px;background:var(--brand);color:#04140D;font:700 15px/1 var(--f);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;transition:transform .1s}
 .btn:active{transform:scale(.98)}
 .btn small{font:500 11px/1 var(--f);color:rgba(4,20,13,.72)}
-.btn.big{height:62px;font-size:17px}
+.btn.big{height:56px;font-size:16px}
 .btn.sec{background:var(--bg-inset);border:1px solid var(--bs);color:var(--tp)}
 .btn.sec small{color:var(--tm)}
 .btn.gold{background:var(--pot);color:#241705}
@@ -104,9 +120,9 @@ input:focus,select:focus{border-color:var(--brand)}
 .live{display:inline-block;width:8px;height:8px;border-radius:99px;background:var(--in);animation:blip 1.8s infinite}
 
 /* player rings */
-.rings{display:flex;gap:9px;overflow-x:auto;padding:3px 1px 5px}
+.rings{display:flex;gap:7px;overflow-x:auto;padding:2px 1px 3px}
 .pr{display:flex;flex-direction:column;align-items:center;gap:5px;flex:none;width:56px}
-.pr .av{width:46px;height:46px;border-radius:99px;background:var(--bg-surface);border:3px solid var(--border);display:flex;align-items:center;justify-content:center;font:700 12px/1 var(--f);color:var(--tp)}
+.pr .av{width:40px;height:40px;border-radius:99px;background:var(--bg-surface);border:2.5px solid var(--border);display:flex;align-items:center;justify-content:center;font:700 12px/1 var(--f);color:var(--tp)}
 .pr .nm{font:500 10px/1.1 var(--f);color:var(--ts);text-align:center;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pr .bg{font:700 10px/1 var(--f);padding:3px 6px;border-radius:99px;border:1px solid var(--border);color:var(--tm);white-space:nowrap}
 .pr.fold{opacity:.45}
@@ -132,13 +148,13 @@ input:focus,select:focus{border-color:var(--brand)}
 .breakdown .tot b{color:#241705}
 .notation{font:600 10.5px/1.5 ui-monospace,Menlo,monospace;color:var(--pot);background:rgba(0,0,0,.18);border-radius:8px;padding:6px 8px;word-break:break-all}
 [data-theme="light"] .notation{background:rgba(0,0,0,.05)}
-.legend{display:flex;flex-wrap:wrap;gap:9px;background:var(--bg-surface);border:1px solid var(--border);border-radius:11px;padding:8px 10px}
+.legend{display:flex;flex-wrap:wrap;gap:8px;background:var(--bg-surface);border:1px solid var(--border);border-radius:10px;padding:5px 9px}
 .legend span{display:flex;align-items:center;gap:5px;font:600 10.5px/1 var(--f);color:var(--ts)}
 .sw{width:9px;height:9px;border-radius:99px;flex:none}
 
 /* ===== ชิพโป๊กเกอร์ ===== */
 .chips{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;justify-items:center}
-.pchip{position:relative;width:52px;height:52px;border-radius:50%;flex:none;
+.pchip{position:relative;width:47px;height:47px;border-radius:50%;flex:none;
   display:flex;align-items:center;justify-content:center;
   box-shadow:0 3px 7px rgba(0,0,0,.45), inset 0 -2px 5px rgba(0,0,0,.28), inset 0 2px 4px rgba(255,255,255,.22);
   transition:transform .12s}
@@ -191,17 +207,17 @@ input:focus,select:focus{border-color:var(--brand)}
 .toast.y{border-color:var(--pending);color:var(--pending)}
 
 /* ===== แผงบอกว่าต้องทำอะไรตอนนี้ ===== */
-.turnbox{border-radius:16px;padding:13px 14px;display:flex;flex-direction:column;gap:5px;
+.turnbox{border-radius:13px;padding:9px 12px;display:flex;flex-direction:column;gap:3px;
   border:1px solid var(--border);background:var(--bg-surface)}
 .turnbox.mine{border-color:var(--pending);background:var(--pend-bg);animation:pls 2s infinite}
 .turnbox.done{border-color:var(--brand);background:var(--brand-bg)}
-.turnbox .who{font:700 17px/1.25 var(--f)}
+.turnbox .who{font:700 15px/1.25 var(--f)}
 .turnbox.mine .who{color:var(--pending)}
 .turnbox.done .who{color:var(--brand4)}
-.turnbox .sub{font:500 12.5px/1.4 var(--f);color:var(--ts)}
+.turnbox .sub{font:500 11.5px/1.35 var(--f);color:var(--ts)}
 /* ===== แถบความคืบหน้าลงกองกลาง ===== */
-.antebox{border:1px solid var(--pot);background:var(--pot-bg);border-radius:16px;padding:13px 14px;
-  display:flex;flex-direction:column;gap:9px}
+.antebox{border:1px solid var(--pot);background:var(--pot-bg);border-radius:13px;padding:10px 12px;
+  display:flex;flex-direction:column;gap:7px}
 .ticks{display:flex;gap:7px;flex-wrap:wrap}
 .tick{width:38px;display:flex;flex-direction:column;align-items:center;gap:3px}
 .tick .box{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;
@@ -1272,21 +1288,37 @@ function vRoom(){
   else if(scr==='settle') return vSettle();
   else if(scr==='wallet') body = vWallet();
   else body = isAdmin() ? vAdminHome() : (isPlayer() ? vPlayerHome() : vSpectator());
-  return vHeader() + `<div class="body">${body}</div>` + vFooterAction() + vNav();
+  // แถบแท็บ Admin ตรึงติด top bar (เฉพาะหน้าห้อง)
+  const sub = (scr==='home' && isAdmin())
+    ? `<div class="subbar"><div class="tabs">
+        <button class="${UI.tab==='control'?'on':''}" data-act="tab" data-t="control">👑 คุมห้อง</button>
+        <button class="${UI.tab==='play'?'on':''}" data-act="tab" data-t="play">🎮 เล่นด้วย</button>
+      </div></div>` : '';
+  // ขอบจอกระพริบเขียวเมื่อถึงตาเรา (เดิมพัน) หรือถึงคิวลงกองกลาง
+  const r = S.curRound;
+  const seat = r?seatOf(r,me.id):null;
+  const myGo = r && r.status==='OPEN' && seat && seat.state==='IN' &&
+    ( (r.phase==='ANTE' && seat.ante<=0) ||
+      (r.phase==='BETTING' && needsAct(r,seat) && (!S.room.settings.strict || r.turn===me.id)) );
+  return vHeader() + sub + `<div class="body">${body}</div>` + vFooterAction() + vNav()
+    + (myGo?'<div class="glow"></div>':'');
 }
 
 function vHeader(){
   const n = pendingForAdmin().length + pendingForMe().length;
+  const w = myWallet();
+  const canSee = isPlayer() || isAdmin();
+  const sync = Store.mode!=='cloud' ? '💻' : Store.rt ? '<span class="live"></span>' : Store.online ? '🔄' : '⚠️';
   return `<div class="hdr">
-    <b>${esc(S.room.name)}</b>
-    <span class="code">${S.room.code}</span>
+    ${canSee
+      ? `<div class="hwallet"><span class="l">💰 กระเป๋าของฉัน</span>
+           <span class="v num">฿${fmt(w.balance)}</span></div>`
+      : `<b>${esc(S.room.name)}</b><span class="code">${S.room.code}</span>`}
     <span class="sp"></span>
-    <button class="pill" data-act="syncInfo" title="สถานะการซิงก์">${
-      Store.mode!=='cloud' ? '💻'
-      : Store.rt ? '<span class="live"></span>'
-      : Store.online ? '🔄' : '⚠️'}</button>
-    <span class="pill">👥 ${Object.values(S.members).filter(m=>m.status!=='LEFT').length}</span>
-    ${n?`<span class="pill pend">🔔 ${n}</span>`:''}
+    ${canSee?`<button class="hbtn" data-act="modal" data-m="topup" title="เติมเงิน">➕</button>
+              <button class="hbtn" data-act="modal" data-m="transfer" title="โอนเงิน">💸</button>`:''}
+    ${n?`<button class="hbtn" data-act="nav" data-s="approvals">🔔<span class="dot2">${n}</span></button>`:''}
+    <button class="hbtn" data-act="syncInfo" title="สถานะการซิงก์">${sync}</button>
   </div>`;
 }
 
@@ -1373,27 +1405,25 @@ function potCard(r){
   const anteSum = r.seats.reduce((a,s)=>a+(s.ante||0),0);
   const curSum  = r.seats.reduce((a,s)=>a+(s.contributed||0),0);
   const multi = (r.streets&&r.streets.length) || (S.room.settings.multiStreet && r.phase==='BETTING');
-  return `<div class="card col" style="background:var(--pot-bg);border-color:var(--pot);gap:8px">
-    <div class="row">
-      <div class="col" style="gap:4px">
-        <span class="lbl pot">กองกลาง · รอบที่ ${r.index}${multi?' · รอบลงเงินที่ '+r.street:''}</span>
+  /* บีบทุกอย่างเหลือ 2 แถว: แถวหลัก (ยอด+สถานะ) กับแถวยอดรายรอบแบบข้อความเดียว */
+  const streetLine = multi
+    ? [anteSum?'ลงกอง ฿'+fmtS(anteSum):null,
+       ...(r.streets||[]).map(x=>'ร.'+x.index+' ฿'+fmtS(x.total)),
+       'ร.'+r.street+' ฿'+fmtS(curSum)].filter(Boolean).join(' · ')
+    : '';
+  return `<div class="card" style="background:var(--pot-bg);border-color:var(--pot);padding:9px 12px">
+    <div class="row" style="gap:10px">
+      <div class="col" style="gap:2px">
+        <span class="lbl pot" style="font-size:10.5px">🪙 กองกลาง${multi?' · รอบลงเงินที่ '+r.street:''}</span>
         <span class="money pot num">฿${fmtS(r.pot)}</span>
       </div>
       <div class="sp"></div>
-      <div class="col" style="gap:4px;text-align:right">
-        <span class="h2">ตามครบ ${c.bet} คน</span>
-        <span class="cap">หมอบ ${c.folded} · ผ่าน ${c.checked} · ยังต้องลง ${c.wait}</span>
-        ${r.currentBet>0?`<span class="cap pot num">เดิมพันล่าสุด ฿${fmtS(r.currentBet)}</span>`:''}
+      <div class="col" style="gap:2px;text-align:right">
+        <span class="h2" style="font-size:13px">ตามครบ ${c.bet} · รอ ${c.wait}</span>
+        <span class="cap">${c.folded?'หมอบ '+c.folded+' · ':''}${r.currentBet>0?'เดิมพัน ฿'+fmtS(r.currentBet):'ยังไม่มีใครลง'}</span>
       </div>
     </div>
-    ${r.pot>0?chipStack(r.pot,'sm'):''}
-    ${multi?`<div class="breakdown">
-      ${anteSum?`<span><i>ลงกอง</i><b class="num">฿${fmtS(anteSum)}</b></span>`:''}
-      ${(r.streets||[]).map(x=>`<span><i>รอบ ${x.index}</i><b class="num">฿${fmtS(x.total)}</b></span>`).join('')}
-      <span class="now"><i>รอบ ${r.street}</i><b class="num">฿${fmtS(curSum)}</b></span>
-      <span class="tot"><i>รวม</i><b class="num">฿${fmtS(r.pot)}</b></span>
-    </div>`:''}
-    ${note?`<div class="notation num">${esc(note)}</div>`:''}
+    ${streetLine?`<div class="cap num" style="margin-top:5px;color:var(--pot)">${streetLine} <b>= ฿${fmtS(r.pot)}</b></div>`:''}
   </div>`;
 }
 
@@ -1407,8 +1437,7 @@ function betPanel(adminMode){
   const cur = r?r.currentBet:0;
   const myPend = pendingForMe();
   let head = '';
-  if(r && r.status==='OPEN') head = `<div class="ban g">🟢 รอบที่ ${r.index} · เปิดรับลงเงิน${cur?` · เดิมพันล่าสุด ฿${fmtS(cur)}`:''}</div>`;
-  else if(r && r.status==='LOCKED') head = `<div class="ban n">🔒 ปิดรับลงเงินแล้ว — รอ Admin จ่ายเงิน</div>`;
+  if(r && r.status==='LOCKED') head = `<div class="ban n">🔒 ปิดรับลงเงินแล้ว — รอ Admin จ่ายเงิน</div>`;
   else if(r && r.status==='SETTLED') head = `<div class="ban n">🏁 รอบที่ ${r.index} จบแล้ว — รอ Admin เปิดรอบใหม่</div>`;
 
   /* ───── ช่วงลงเงินกองกลาง (ante) ───── */
@@ -1420,8 +1449,7 @@ function betPanel(adminMode){
     const pct = inSeats.length ? Math.round(done.length/inSeats.length*100) : 0;
     return `
     ${myPend.length?`<button class="notice" data-act="openPend">🔔 ${myPend.length} คำขอรอคุณตอบ ›</button>`:''}
-    ${adminMode?`<div class="ban a">👑 คุณเล่นในวงด้วย</div>`:''}
-
+  
     <div class="antebox">
       <div class="row">
         <div class="col" style="gap:2px">
@@ -1442,14 +1470,7 @@ function betPanel(adminMode){
             <span class="box">${out?'💤':(x.ante>0?'✓':'…')}</span>
             <span class="nm">${x.memberId===me.id?'คุณ':esc(m.name)}</span></div>`;}).join('')}
       </div>
-      ${left.length?`<div class="cap">รอ: <b>${left.map(x=>esc(x.memberId===me.id?'คุณ':nameOf(S,x.memberId))).join(' · ')}</b></div>`:''}
       ${r.starterId?`<div class="cap">ครบแล้วเริ่มเดิมพันที่ <b>${esc(nameOf(S,r.starterId))}</b>${S.lastWinnerId===r.starterId?' 🏆 (ชนะรอบก่อน)':''}</div>`:''}
-    </div>
-
-    <div class="card row">
-      <div class="col" style="gap:2px"><span class="lbl">กระเป๋าของ${adminMode?'คุณ (Admin)':'ฉัน'}</span>
-        <span class="money num">฿${fmt(w.balance)}</span></div>
-      <div class="sp"></div>${chipStack(w.balance,'xs')}
     </div>
 
     ${paid
@@ -1514,39 +1535,24 @@ function betPanel(adminMode){
 
   return `
   ${myPend.length?`<button class="notice" data-act="openPend">🔔 ${myPend.length} คำขอรอคุณตอบ ›</button>`:''}
-  ${adminMode?`<div class="ban a">👑 คุณเล่นในวงด้วย</div>`:''}
   ${head}
   ${box}
   ${raise}
   ${potCard(r)}
   ${ringRow(r)}
-  ${tierLegend(r)}
-  <div class="card row">
-    <div class="col" style="gap:3px">
-      <span class="lbl">กระเป๋าของ${adminMode?'คุณ (Admin)':'ฉัน'}</span>
-      <span class="money num">฿${fmt(w.balance)}</span>
-      ${sel!==null&&canAct?`<span class="cap">เลือก ฿${fmtS(sel)} → จ่ายเพิ่ม ฿${fmtS(Math.max(0,sel-mineIn))} · เหลือ ฿${fmtS(Math.max(0,w.balance-(sel-mineIn)))}</span>`:''}
-    </div>
-    <div class="sp"></div>
-    <div class="row" style="gap:6px">
-      <button class="btn sec sm" data-act="modal" data-m="topup">เติมเงิน</button>
-      <button class="btn sec sm" data-act="modal" data-m="transfer">โอน</button>
-      <button class="btn sec sm" data-act="modal" data-m="more">⋯</button></div>
-  </div>
   ${canAct?`
-  <div class="col" style="gap:9px">
+  <div class="col" style="gap:7px">
     ${quick.length?`<div class="row" style="gap:6px;flex-wrap:wrap">
-      ${quick.map(([v,l])=>`<button class="pill" style="height:34px;padding:0 13px;background:var(--bg-inset);border:1px solid var(--bs);color:var(--tp);font-weight:700" data-act="pickChip" data-v="${v}">${l}</button>`).join('')}
+      ${quick.map(([v,l])=>`<button class="pill" style="height:33px;padding:0 12px;background:var(--bg-inset);border:1px solid var(--bs);color:var(--tp);font-weight:700" data-act="pickChip" data-v="${v}">${l}</button>`).join('')}
     </div>`:''}
-    <div class="row"><span class="lbl">หรือเลือกชิพ</span><span class="sp"></span>
-      ${cur>0?`<span class="lbl pot num">ต้องถึง ฿${fmtS(cur)}</span>`:'<span class="cap">คุณเปิดเดิมพันเป็นคนแรก</span>'}</div>
     <div class="chips">${chipHtml}</div>
     <div class="g2">
-      <button class="btn sec sm" style="width:100%;height:44px" data-act="${canCheck?'check':'lockedCheck'}" ${canCheck?'':'disabled'}>
+      <button class="btn sec sm" style="width:100%;height:40px" data-act="${canCheck?'check':'lockedCheck'}" ${canCheck?'':'disabled'}>
         ${canCheck?'⏭ ผ่าน (ไม่เสียเงิน)':'⏭ ผ่านไม่ได้ 🔒'}</button>
-      <button class="btn sec sm" style="width:100%;height:44px" data-act="modal" data-m="custom">⌨ ใส่ยอดเอง</button>
+      <button class="btn sec sm" style="width:100%;height:40px" data-act="modal" data-m="custom">⌨ ใส่ยอดเอง</button>
     </div>
-    <div class="cap">ตัวเลขบนชิพคือ <b>ยอดรวมของรอบนี้</b> ไม่ใช่ยอดที่จ่ายเพิ่ม</div>
+    ${sel!==null?`<div class="cap num" style="text-align:center">เลือก ฿${fmtS(sel)} → จ่ายเพิ่ม ฿${fmtS(Math.max(0,sel-mineIn))} · เหลือ ฿${fmtS(Math.max(0,w.balance-(sel-mineIn)))}</div>`
+               :`<div class="cap" style="text-align:center">ตัวเลขบนชิพคือ <b>ยอดรวมของรอบนี้</b> ไม่ใช่ยอดที่จ่ายเพิ่ม</div>`}
   </div>`:''}
   `;
 }
@@ -1617,10 +1623,7 @@ function vSpectator(){
 
 /* ---------- admin home ---------- */
 function vAdminHome(){
-  return `<div class="tabs">
-    <button class="${UI.tab==='control'?'on':''}" data-act="tab" data-t="control">👑 คุมห้อง</button>
-    <button class="${UI.tab==='play'?'on':''}" data-act="tab" data-t="play">🎮 เล่นด้วย</button>
-  </div>` + (UI.tab==='play' ? betPanel(true) : vAdminControl());
+  return UI.tab==='play' ? betPanel(true) : vAdminControl();
 }
 
 function vAdminControl(){
