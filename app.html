@@ -316,6 +316,15 @@ input:focus,select:focus{border-color:var(--brand)}
 .pcard.open .in{transform:rotateY(180deg)}
 .pcard .fc .pip{font-size:25px;line-height:1}
 .pcard .fc .no{font:800 12px/1 var(--f);color:#10151C}
+/* แถบติ๊กปิดอัตโนมัติในป๊อปอัพ */
+.autorow{display:flex;align-items:center;gap:9px;width:100%;padding:9px 12px;border-radius:12px;
+  background:var(--bg-inset);border:1px solid var(--border);text-align:left}
+.autorow .bx{width:21px;height:21px;flex:none;border-radius:6px;border:2px solid var(--bs);
+  display:flex;align-items:center;justify-content:center;font:800 12px/1 var(--f);color:#04140D}
+.autorow.on{border-color:var(--brand);background:var(--brand-bg)}
+.autorow.on .bx{background:var(--brand);border-color:var(--brand)}
+.autorow .tx{font:600 12.5px/1.3 var(--f);color:var(--ts)}
+.autorow.on .tx{color:var(--brand4)}
 /* misc */
 .kbd{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 .kbd button{height:50px;border-radius:11px;background:var(--bg-inset);border:1px solid var(--border);font:700 18px/1 var(--f)}
@@ -1399,12 +1408,26 @@ function updateTurnNag(){
 /* ---------- ป๊อปอัพอัตโนมัติ: สรุปผู้ชนะ (ทุกเครื่อง) + เปิดไพ่กลาง ---------- */
 let sumAuto = true, sumSecs = 5, _sumTimer = null;
 
-function scheduleSummaryClose(){
+/** ติ๊ก "ปิดอัตโนมัติ" ของป๊อปอัพที่เปิดอยู่ตอนนี้ — รีเซ็ตเป็นติ๊กไว้ทุกครั้งที่เปิดใหม่ */
+let autoTick = true;
+
+function armAutoClose(){
   clearTimeout(_sumTimer);
-  if(!sumAuto) return;
+  if(!sumAuto || !autoTick) return;          // ปิดไว้ในตั้งค่า หรือผู้ใช้ติ๊กออกเอง = ไม่ปิดให้
   _sumTimer = setTimeout(()=>{
     if(UI.modal && (UI.modal.k==='summary' || UI.modal.k==='reveal')){ UI.modal=null; render(); }
   }, Math.max(2, sumSecs)*1000);
+}
+/** เรียกตอนเปิดป๊อปอัพใหม่ — ติ๊กกลับมาเสมอ */
+function scheduleSummaryClose(){ autoTick = true; armAutoClose(); }
+
+/** แถบติ๊กปิดอัตโนมัติ ใช้ร่วมกันทั้งหน้าสรุปและหน้าเปิดไพ่ */
+function autoCloseRow(){
+  if(!sumAuto) return `<div class="cap" style="text-align:center">ปิดอัตโนมัติถูกปิดไว้ในตั้งค่า — กดปิดเอง</div>`;
+  return `<button class="autorow ${autoTick?'on':''}" data-act="toggleAutoTick">
+    <span class="bx">${autoTick?'✓':''}</span>
+    <span class="tx">${autoTick?'ปิดอัตโนมัติใน '+sumSecs+' วินาที':'ค้างไว้ — กดปิดเองเมื่อดูเสร็จ'}</span>
+  </button>`;
 }
 
 /* จำว่าเคยโชว์อะไรไปแล้ว — ไม่พึ่งการเทียบ snapshot เพราะเครื่องผู้เล่น
@@ -2790,7 +2813,7 @@ function mReveal(street){
     <div class="cap" style="text-align:center">จบรอบลงเงินที่ ${street-1} แล้ว — เปิดไพ่กลางบนโต๊ะ แล้วเดิมพันรอบที่ ${street} ต่อ</div>
     <div class="cards">${cards}</div>
     <button class="btn" data-act="closeModal">เปิดแล้ว ไปเดิมพันต่อ</button>
-    ${sumAuto?`<div class="cap" style="text-align:center">ปิดเองใน ${sumSecs} วินาที</div>`:''}`, true);
+    ${autoCloseRow()}`, true);
 }
 
 /** ผู้ชนะหลายคน → ให้ Admin เลือกว่าใครเริ่มรอบถัดไป */
@@ -2857,7 +2880,7 @@ function mSummary(r){
     </tbody></table>
     <button class="btn" data-act="closeModal">ปิด</button>
     ${isAdmin()?`<button class="btn gold" data-act="openRoundFromSummary">▶ เปิดรอบใหม่</button>`:''}
-    ${sumAuto?`<div class="cap" style="text-align:center">ปิดเองใน ${sumSecs} วินาที (ตั้งได้ในตั้งค่า)</div>`:''}`, true);
+    ${autoCloseRow()}`, true);
 }
 
 /* ============================================================
@@ -2870,6 +2893,13 @@ const A = {
   back(){ UI.screen='landing'; render(); },
   toggleBal(){ hideBal=!hideBal; LS.set('pk:hidebal', hideBal?'1':'0'); render(); },
   toggleSumAuto(){ sumAuto=!sumAuto; LS.set('pk:sumauto', sumAuto?'1':'0'); render(); },
+  /** ติ๊ก/ไม่ติ๊ก ปิดอัตโนมัติ เฉพาะป๊อปอัพที่เปิดอยู่ตอนนี้ (รอบหน้าติ๊กกลับมาเอง) */
+  toggleAutoTick(){
+    autoTick = !autoTick;
+    armAutoClose();                       // ติ๊ก = เริ่มนับใหม่ · ไม่ติ๊ก = ยกเลิกตัวจับเวลา
+    if(!autoTick) toast('ค้างหน้านี้ไว้ — กดปิดเองเมื่อดูเสร็จ','y');
+    render();
+  },
   saveSumSecs(){ const v=Math.max(2,Math.min(60,parseInt($('#s_sumsecs').value)||5));
     sumSecs=v; LS.set('pk:sumsecs',String(v)); toast('หน้าสรุปจะปิดเองใน '+v+' วินาที','g'); render(); },
   sound(){ const on=Sfx.toggle(); toast(on?'🔔 เปิดเสียงเตือนแล้ว':'🔕 ปิดเสียงเตือน','g'); render(); },
