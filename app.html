@@ -133,12 +133,37 @@ input:focus,select:focus{border-color:var(--brand)}
 .legend span{display:flex;align-items:center;gap:5px;font:600 10.5px/1 var(--f);color:var(--ts)}
 .sw{width:9px;height:9px;border-radius:99px;flex:none}
 
-/* chips */
-.chips{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
-.chip{height:46px;border-radius:99px;background:var(--bg-surface);border:1px solid var(--bs);font:700 14px/1 var(--f);color:var(--tp);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
-.chip.lock{background:var(--bg-inset);border:1px dashed var(--border);color:var(--tm);font-size:12px}
-.chip.lock i{font-size:8px;font-style:normal}
-.chip.on{box-shadow:0 0 0 3px rgba(255,255,255,.16)}
+/* ===== ชิพโป๊กเกอร์ ===== */
+.chips{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;justify-items:center}
+.pchip{position:relative;width:52px;height:52px;border-radius:50%;flex:none;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 3px 7px rgba(0,0,0,.45), inset 0 -2px 5px rgba(0,0,0,.28), inset 0 2px 4px rgba(255,255,255,.22);
+  transition:transform .12s}
+.pchip .edge{position:absolute;inset:0;border-radius:50%;
+  background:conic-gradient(rgba(255,255,255,.92) 0 7%, transparent 7% 25%, rgba(255,255,255,.92) 25% 32%,
+    transparent 32% 50%, rgba(255,255,255,.92) 50% 57%, transparent 57% 75%, rgba(255,255,255,.92) 75% 82%, transparent 82%);
+  -webkit-mask:radial-gradient(circle, transparent 63%, #000 64%, #000 88%, transparent 89%);
+          mask:radial-gradient(circle, transparent 63%, #000 64%, #000 88%, transparent 89%)}
+.pchip .disc{position:absolute;inset:19%;border-radius:50%;background:rgba(255,255,255,.16);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
+.pchip .v{position:relative;z-index:2;font:800 15px/1 var(--f);letter-spacing:-.4px}
+.pchip:active{transform:scale(.93)}
+.pchip.on{transform:translateY(-5px) scale(1.04);
+  box-shadow:0 8px 16px rgba(0,0,0,.5), 0 0 0 3px var(--brand4), inset 0 -2px 5px rgba(0,0,0,.28)}
+.pchip.lock{filter:grayscale(1) brightness(.45);box-shadow:none;opacity:.55}
+.pchip.lock .lk{position:absolute;z-index:3;font-size:15px}
+.pchip.lock .v{opacity:.25}
+.pchip.sm{width:30px;height:30px}
+.pchip.sm .v{font-size:9px}
+.pchip.xs{width:22px;height:22px}
+.pchip.xs .v{font-size:7.5px}
+/* กองชิพซ้อน */
+.stack{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
+.stack .col{display:flex;flex-direction:column-reverse;align-items:center}
+.stack .col .pchip.xs{margin-top:-15px}
+.stack .col .pchip.sm{margin-top:-21px}
+.stack .col .pchip:first-child{margin-top:0}
+.stack .cnt{font:700 9.5px/1 var(--f);color:var(--ts);margin-top:4px}
 
 /* list rows */
 .lrow{display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:12px;background:var(--bg-surface);border:1px solid var(--border)}
@@ -162,6 +187,36 @@ input:focus,select:focus{border-color:var(--brand)}
 .toast.r{border-color:var(--danger);color:var(--out)}
 .toast.y{border-color:var(--pending);color:var(--pending)}
 
+/* ===== แผงบอกว่าต้องทำอะไรตอนนี้ ===== */
+.turnbox{border-radius:16px;padding:13px 14px;display:flex;flex-direction:column;gap:5px;
+  border:1px solid var(--border);background:var(--bg-surface)}
+.turnbox.mine{border-color:var(--pending);background:var(--pend-bg);animation:pls 2s infinite}
+.turnbox.done{border-color:var(--brand);background:var(--brand-bg)}
+.turnbox .who{font:700 17px/1.25 var(--f)}
+.turnbox.mine .who{color:var(--pending)}
+.turnbox.done .who{color:var(--brand4)}
+.turnbox .sub{font:500 12.5px/1.4 var(--f);color:var(--ts)}
+/* ===== แถบความคืบหน้าลงกองกลาง ===== */
+.antebox{border:1px solid var(--pot);background:var(--pot-bg);border-radius:16px;padding:13px 14px;
+  display:flex;flex-direction:column;gap:9px}
+.ticks{display:flex;gap:7px;flex-wrap:wrap}
+.tick{width:38px;display:flex;flex-direction:column;align-items:center;gap:3px}
+.tick .box{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font:700 13px/1 var(--f);background:var(--bg-inset);border:1.5px dashed var(--bs);color:var(--tm)}
+.tick.ok .box{background:var(--brand);border:1.5px solid var(--brand);color:#04140D}
+.tick.out .box{opacity:.4}
+.tick .nm{font:500 9px/1.1 var(--f);color:var(--ts);max-width:38px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prog{height:8px;border-radius:99px;background:rgba(0,0,0,.28);overflow:hidden}
+.prog i{display:block;height:100%;background:var(--brand4);border-radius:99px;transition:width .3s}
+/* ===== เลือกผู้ชนะ ===== */
+.wpick{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:8px}
+.wcard{border:1.5px solid var(--border);background:var(--bg-surface);border-radius:14px;padding:9px 6px;
+  display:flex;flex-direction:column;align-items:center;gap:5px;position:relative}
+.wcard.on{border-color:var(--pot);background:var(--pot-bg);box-shadow:0 0 0 2px rgba(212,162,76,.25)}
+.wcard.off{opacity:.38}
+.wcard .crown{position:absolute;top:-9px;font-size:17px}
+.wcard .n{font:600 11.5px/1.1 var(--f);text-align:center}
+.wcard .amt{font:700 13px/1 var(--f);color:var(--pot)}
 /* misc */
 .kbd{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 .kbd button{height:50px;border-radius:11px;background:var(--bg-inset);border:1px solid var(--border);font:700 18px/1 var(--f)}
@@ -203,6 +258,17 @@ const SUPABASE_ANON_KEY = "";
 const SB_TABLE = 'pk_events';
 const SB_CDN   = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 
+/* สีชิพตามมูลค่า อิงชุดสีคาสิโนมาตรฐาน */
+const CHIP_FACE = v =>
+  v<=1   ? {bg:'linear-gradient(145deg,#FDFDFD,#D8DEE6)', ink:'#10151C'} :
+  v<=5   ? {bg:'linear-gradient(145deg,#F0575C,#C8272D)', ink:'#fff'} :
+  v<=10  ? {bg:'linear-gradient(145deg,#57ABFF,#1F6FCB)', ink:'#fff'} :
+  v<=25  ? {bg:'linear-gradient(145deg,#2BC98A,#0E7F55)', ink:'#fff'} :
+  v<=50  ? {bg:'linear-gradient(145deg,#FFB061,#E07B18)', ink:'#2A1403'} :
+  v<=100 ? {bg:'linear-gradient(145deg,#3A4250,#14181F)', ink:'#fff'} :
+  v<=500 ? {bg:'linear-gradient(145deg,#9B8CFF,#5B49E0)', ink:'#fff'} :
+           {bg:'linear-gradient(145deg,#FFD264,#E0A21B)', ink:'#241705'};
+
 const TIER_COLORS = ['#22C58A','#D4A24C','#3D9CF5','#C77DFF','#FF9F45','#FF6FA5'];
 const TIER_INK    = ['#04140D','#241705','#04121F','#1B0A26','#2A1403','#2B0A18'];
 const AVCOLORS = ['#22C58A','#3D9CF5','#F5B23D','#FF6FA5','#C77DFF','#FF9F45','#4ECDC4','#FF8A65'];
@@ -224,6 +290,62 @@ const parseAmt = v => {
 const initials = n => (n||'?').trim().slice(0,2);
 const roomCode = () => { const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let r=''; for(let i=0;i<6;i++) r+=A[Math.floor(Math.random()*A.length)]; return r; };
 const nowT = () => Date.now();
+
+/* ---------- ชิพโป๊กเกอร์ ---------- */
+/** วาดชิพ 1 อัน · v = มูลค่าเป็นบาท */
+function pokerChip(v, cls, extra){
+  const f = CHIP_FACE(v);
+  return `<span class="pchip ${cls||''}" style="background:${f.bg};color:${f.ink}" ${extra||''}>
+    <i class="edge"></i><i class="disc"></i><b class="v">${v>=1000?(v/1000)+'K':v}</b>
+    ${(cls||'').includes('lock')?'<i class="lk">🔒</i>':''}</span>`;
+}
+/** แตกยอดเงินเป็นกองชิพซ้อน เพื่อให้เห็นภาพเหมือนโต๊ะจริง */
+function chipStack(satang, size){
+  const DEN=[1000,500,100,50,25,10,5,1];
+  let left = Math.round(satang/100), out=[];
+  for(const d of DEN){ const n=Math.floor(left/d); if(n>0){ out.push([d,n]); left-=n*d; } }
+  if(!out.length) return '<span class="cap">ยังไม่มีเงินในกอง</span>';
+  return `<div class="stack">${out.slice(0,6).map(([d,n])=>`<div class="col">
+    ${Array.from({length:Math.min(n,5)},()=>pokerChip(d,size||'xs')).join('')}
+    <span class="cnt">${n>5?'×'+n:'×'+n}</span></div>`).join('')}</div>`;
+}
+
+/* ---------- เสียงและการสั่น ---------- */
+const Sfx = {
+  ctx:null, on:true,
+  init(){ this.on = LS.get('pk:sound') !== '0'; },
+  unlock(){ if(this.ctx) return;
+    try{ const C = window.AudioContext||window.webkitAudioContext; if(C) this.ctx = new C(); }catch(e){}
+    if(this.ctx && this.ctx.state==='suspended') this.ctx.resume().catch(()=>{});
+  },
+  tone(freq, start, dur, vol, type){
+    if(!this.ctx) return;
+    const t0 = this.ctx.currentTime + start;
+    const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = type||'sine'; o.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(vol==null?0.25:vol, t0+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g); g.connect(this.ctx.destination);
+    o.start(t0); o.stop(t0+dur+0.02);
+  },
+  buzz(ms){ try{ navigator.vibrate && navigator.vibrate(ms); }catch(e){} },
+  /** ถึงตาคุณ — เสียงเด่น ต้องได้ยินชัดในวงที่เสียงดัง */
+  myTurn(){ if(!this.on) return; this.unlock();
+    this.tone(880,0,.16,.3); this.tone(1320,.17,.20,.3); this.tone(1760,.36,.26,.26);
+    this.buzz([90,70,90,70,160]); },
+  /** เตือนให้ลงกองกลาง */
+  ante(){ if(!this.on) return; this.unlock();
+    this.tone(660,0,.18,.24); this.tone(880,.19,.22,.22); this.buzz([70,60,120]); },
+  /** ชนะ */
+  win(){ if(!this.on) return; this.unlock();
+    [523,659,784,1047].forEach((f,i)=>this.tone(f,i*0.11,.3,.26,'triangle')); this.buzz([50,40,50,40,220]); },
+  /** เสียงชิพตอนลงเงิน */
+  chip(){ if(!this.on) return; this.unlock();
+    this.tone(2100,0,.05,.14,'square'); this.tone(1500,.045,.07,.10,'square'); },
+  toggle(){ this.on=!this.on; LS.set('pk:sound', this.on?'1':'0');
+    if(this.on){ this.unlock(); this.tone(880,0,.12,.25); } return this.on; }
+};
 
 /* ---------- storage ที่ทนทาน (private mode / data: URL / iframe ใช้ได้) ---------- */
 const LS = (()=>{
@@ -965,6 +1087,7 @@ function refresh(){
   const prev = S;
   const firstLoad = !prev.room;              // เพิ่งเปิดห้อง — ไม่ต้องเด้งย้อนหลังทั้งหมด
   S = reduce(Store.events);
+  notifyMyTurn(prev);
   if(!firstLoad && prev.feed && S.feed.length>prev.feed.length && UI.screen!=='landing'){
     const added = S.feed.slice(prev.feed.length).filter(f=>f.kind!=='silent');
     if(added.length > 2){
@@ -995,6 +1118,25 @@ const profitOf = mid => {
   const inPot = seat ? paidTotal(seat) : 0;   // เงินที่ยังค้างในกองถือเป็นของเจ้าตัวไว้ก่อน
   return w.balance + inPot - (w.issuedIn - w.returnedOut);
 };
+
+/** ส่งเสียง/สั่น เมื่อสถานะเปลี่ยนมาเป็น "ตาคุณ" หรือ "ต้องลงกองกลาง" หรือ "คุณชนะ" */
+function notifyMyTurn(prev){
+  const a = prev.curRound, b = S.curRound;
+  if(!b || b.status!=='OPEN') { if(b && b.status==='SETTLED' && (!a||a.status!=='SETTLED')){
+      const w=(b.winners||[]).find(x=>x.memberId===me.id); if(w) Sfx.win(); } return; }
+  const seat = seatOf(b, me.id); if(!seat || seat.state!=='IN') return;
+
+  const sameRound = !!(a && a.id===b.id);
+  if(b.phase==='ANTE'){
+    const need = seat.ante<=0;
+    const wasNeed = sameRound && a.phase==='ANTE' && ((seatOf(a,me.id)||{}).ante||0)<=0;
+    if(need && !wasNeed){ Sfx.ante(); toast('🪙 ถึงคิวลงเงินกองกลาง ฿'+fmtS(b.anteAmount),'y'); }
+    return;
+  }
+  const mine = b.turn===me.id;
+  const wasMine = !!(sameRound && a.phase==='BETTING' && a.turn===me.id && a.street===b.street);
+  if(mine && !wasMine){ Sfx.myTurn(); toast('👉 ถึงตาคุณแล้ว!','y'); }
+}
 
 const TOAST_MAX = 3;                       // แสดงพร้อมกันได้มากสุดกี่อัน
 function toast(text, kind){
@@ -1241,6 +1383,7 @@ function potCard(r){
         ${r.currentBet>0?`<span class="cap pot num">เดิมพันล่าสุด ฿${fmtS(r.currentBet)}</span>`:''}
       </div>
     </div>
+    ${r.pot>0?chipStack(r.pot,'sm'):''}
     ${multi?`<div class="breakdown">
       ${anteSum?`<span><i>ลงกอง</i><b class="num">฿${fmtS(anteSum)}</b></span>`:''}
       ${(r.streets||[]).map(x=>`<span><i>รอบ ${x.index}</i><b class="num">฿${fmtS(x.total)}</b></span>`).join('')}
@@ -1268,29 +1411,51 @@ function betPanel(adminMode){
   /* ───── ช่วงลงเงินกองกลาง (ante) ───── */
   if(r && r.status==='OPEN' && r.phase==='ANTE'){
     const need = r.anteAmount, paid = s?s.ante>0:false;
-    const left = r.seats.filter(x=>x.state==='IN'&&x.ante<=0);
+    const inSeats = r.seats.filter(x=>x.state==='IN');
+    const done = inSeats.filter(x=>x.ante>0);
+    const left = inSeats.filter(x=>x.ante<=0);
+    const pct = inSeats.length ? Math.round(done.length/inSeats.length*100) : 0;
     return `
     ${myPend.length?`<button class="notice" data-act="openPend">🔔 ${myPend.length} คำขอรอคุณตอบ ›</button>`:''}
-    ${adminMode?`<div class="ban a">👑 คุณกำลังเล่นในวงด้วย — ยอดของคุณถูกนับในสมการเงินเหมือนผู้เล่นทุกคน</div>`:''}
-    <div class="ban i">🪙 รอบที่ ${r.index} · <b>ลงเงินกองกลาง</b> คนละ ฿${fmtS(need)}</div>
-    ${ringRow(r)}
-    ${potCard(r)}
-    <div class="card col">
-      <div class="row"><span class="lbl">กระเป๋าของ${adminMode?'คุณ (Admin)':'ฉัน'}</span><span class="sp"></span>
-        <span class="money-l num">฿${fmt(w.balance)}</span></div>
-      <div class="cap">ยังไม่ลง ${left.length} คน${left.length?': '+left.map(x=>esc(nameOf(S,x.memberId))).join(' · '):''}</div>
-      ${r.starterId?`<div class="cap">ลงครบแล้วจะเริ่มเดิมพันที่ <b>${esc(nameOf(S,r.starterId))}</b>${S.lastWinnerId===r.starterId?' (ผู้ชนะรอบก่อน)':''}</div>`:''}
+    ${adminMode?`<div class="ban a">👑 คุณเล่นในวงด้วย</div>`:''}
+
+    <div class="antebox">
+      <div class="row">
+        <div class="col" style="gap:2px">
+          <span class="lbl pot">🪙 ลงเงินกองกลาง · รอบที่ ${r.index}</span>
+          <span class="money-l pot num">คนละ ฿${fmtS(need)}</span>
+        </div>
+        <div class="sp"></div>
+        <div class="col" style="gap:2px;text-align:right">
+          <span class="money-l num ${pct===100?'in':''}">${done.length}/${inSeats.length}</span>
+          <span class="cap">${pct===100?'ครบแล้ว ✅':'ยังไม่ครบ'}</span>
+        </div>
+      </div>
+      <div class="prog"><i style="width:${pct}%"></i></div>
+      <div class="ticks">
+        ${r.seats.map(x=>{ const m=S.members[x.memberId]; if(!m) return '';
+          const out = x.state!=='IN';
+          return `<div class="tick ${x.ante>0?'ok':''} ${out?'out':''}">
+            <span class="box">${out?'💤':(x.ante>0?'✓':'…')}</span>
+            <span class="nm">${x.memberId===me.id?'คุณ':esc(m.name)}</span></div>`;}).join('')}
+      </div>
+      ${left.length?`<div class="cap">รอ: <b>${left.map(x=>esc(x.memberId===me.id?'คุณ':nameOf(S,x.memberId))).join(' · ')}</b></div>`:''}
+      ${r.starterId?`<div class="cap">ครบแล้วเริ่มเดิมพันที่ <b>${esc(nameOf(S,r.starterId))}</b>${S.lastWinnerId===r.starterId?' 🏆 (ชนะรอบก่อน)':''}</div>`:''}
     </div>
+
+    <div class="card row">
+      <div class="col" style="gap:2px"><span class="lbl">กระเป๋าของ${adminMode?'คุณ (Admin)':'ฉัน'}</span>
+        <span class="money num">฿${fmt(w.balance)}</span></div>
+      <div class="sp"></div>${chipStack(w.balance,'xs')}
+    </div>
+
     ${paid
-      ? `<div class="ban g">✅ คุณลงกองกลางแล้ว ฿${fmtS(s.ante)} — รออีก ${left.length} คน</div>`
+      ? `<div class="turnbox done"><span class="who">✅ คุณลงแล้ว ฿${fmtS(s.ante)}</span>
+           <span class="sub">รออีก ${left.length} คน แล้วเริ่มเดิมพันได้เลย</span></div>`
       : s && s.state==='SITTING_OUT'
       ? `<div class="ban n">💤 คุณพักรอบนี้</div>`
-      : `<div class="g2">
-           <button class="btn sec" data-act="anteSitout">ไม่ลง (พักรอบนี้)</button>
-           <button class="btn" data-act="ante" ${w.balance>=need?'':'disabled'}>
-             ${w.balance>=need?'ลงกองกลาง ฿'+fmtS(need):'เงินไม่พอ (ต้องมี ฿'+fmtS(need)+')'}
-             ${w.balance>=need?`<small>คงเหลือ ฿${fmtS(w.balance-need)}</small>`:''}</button>
-         </div>`}
+      : `<div class="turnbox mine"><span class="who">🪙 ถึงคิวคุณลงกองกลาง</span>
+           <span class="sub">ทุกคนต้องลงเท่ากันก่อนถึงจะเริ่มเดิมพันได้</span></div>`}
     `;
   }
 
@@ -1311,55 +1476,75 @@ function betPanel(adminMode){
   const chipHtml = chips.map(cB=>{
     const v = B(cB);
     const locked = !canAct || v<cur || v<=mineIn;
-    const tIdx = r?r.tiers.findIndex(x=>x.amount===v):-1;
-    let stl='';
-    if(!locked && tIdx>=0) stl=`background:${r.tiers[tIdx].color};border-color:${r.tiers[tIdx].color};color:${r.tiers[tIdx].ink}`;
-    else if(!locked && sel===v){ const c=TIER_COLORS[(r?r.tiers.length:0)%TIER_COLORS.length]; stl=`background:${c};border-color:${c};color:${TIER_INK[(r?r.tiers.length:0)%TIER_INK.length]}`; }
-    return `<button class="chip ${locked?'lock':''} ${sel===v?'on':''}" data-act="${locked?'lockedChip':'pickChip'}" data-v="${v}" style="${stl}">${cB}${locked?'<i>🔒</i>':''}</button>`;
+    return pokerChip(cB, (locked?'lock ':'')+(sel===v?'on':''),
+      `data-act="${locked?'lockedChip':'pickChip'}" data-v="${v}"`);
   }).join('');
   const canCheck = canAct && mineIn===cur;
+  /* ปุ่มลัดแบบโป๊กเกอร์ — ตาม / ขึ้น 2 เท่า / 3 เท่า */
+  const quick = [];
+  if(canAct){
+    if(cur>mineIn) quick.push([cur,'ตาม ฿'+fmtS(cur)]);
+    const base = cur>0?cur:B(chips[0]);
+    [2,3].forEach(m=>{ const v=base*m; if(v>cur && v-mineIn<=w.balance) quick.push([v,'ขึ้น ฿'+fmtS(v)]); });
+    if(w.balance+mineIn>cur && w.balance+mineIn!==(quick[quick.length-1]||[])[0])
+      quick.push([w.balance+mineIn,'ลงหมด ฿'+fmtS(w.balance+mineIn)]);
+  }
+
+  /* กล่องบอกสถานะ — ตัวใหญ่ที่สุดบนจอ อ่านปราดเดียวรู้ว่าต้องทำอะไร */
+  let box='';
+  if(r && r.status==='OPEN'){
+    if(s && s.state==='FOLDED')
+      box = `<div class="turnbox"><span class="who">🃏 คุณหมอบรอบนี้แล้ว</span><span class="sub">รอดูผลรอบนี้ · ลงใหม่ได้รอบหน้า</span></div>`;
+    else if(s && s.state==='SITTING_OUT')
+      box = `<div class="turnbox"><span class="who">💤 คุณพักรอบนี้</span><span class="sub">ลงได้ในรอบถัดไป</span></div>`;
+    else if(s && !needsAct(r,s))
+      box = `<div class="turnbox done"><span class="who">✅ คุณลงครบแล้ว ฿${fmtS(s.contributed)}</span>
+             <span class="sub">${r.turn?'รอ '+esc(nameOf(S,r.turn)):'รอคนอื่นลงให้ครบ'}</span></div>`;
+    else if(canAct)
+      box = `<div class="turnbox mine"><span class="who">👉 ตาคุณแล้ว!</span>
+             <span class="sub">${cur>mineIn?'ต้องตามให้ถึง ฿'+fmtS(cur)+' (จ่ายเพิ่ม ฿'+fmtS(cur-mineIn)+') · ขึ้นก็ได้ · หรือหมอบ'
+                                        :'ยังไม่มีใครลง — ผ่านฟรี หรือเปิดเดิมพันก่อนก็ได้'}</span></div>`;
+    else
+      box = `<div class="turnbox"><span class="who">⏳ ตาของ ${esc(nameOf(S,r.turn)||'—')}</span>
+             <span class="sub">รอสักครู่ เดี๋ยวถึงตาคุณระบบจะส่งเสียงเตือน</span></div>`;
+  }
 
   return `
   ${myPend.length?`<button class="notice" data-act="openPend">🔔 ${myPend.length} คำขอรอคุณตอบ ›</button>`:''}
-  ${adminMode?`<div class="ban a">👑 คุณกำลังเล่นในวงด้วย — ยอดของคุณถูกนับในสมการเงินเหมือนผู้เล่นทุกคน</div>`:''}
+  ${adminMode?`<div class="ban a">👑 คุณเล่นในวงด้วย</div>`:''}
   ${head}
-  ${ringRow(r)}
-  ${turnBanner(r)}
-  ${tierLegend(r)}
+  ${box}
   ${raise}
   ${potCard(r)}
-  <div class="card">
-    <div class="row">
-      <div class="col" style="gap:3px">
-        <span class="lbl">กระเป๋าของ${adminMode?'คุณ (Admin)':'ฉัน'}</span>
-        <span class="money num">฿${fmt(w.balance)}</span>
-      </div>
-      <div class="sp"></div>
-      ${sel!==null&&canAct
-        ? `<div class="col" style="gap:3px;text-align:right"><span class="cap">คงเหลือหลังลง</span>
-             <span class="money-s num ${w.balance-sel<0?'out':''}">฿${fmtS(Math.max(0,w.balance-sel))}</span></div>`
-        : `<div class="row" style="gap:7px">
-             <button class="btn sec sm" data-act="modal" data-m="topup">เติมเงิน</button>
-             <button class="btn sec sm" data-act="modal" data-m="transfer">โอน</button>
-             <button class="btn sec sm" data-act="modal" data-m="more">⋯</button></div>`}
+  ${ringRow(r)}
+  ${tierLegend(r)}
+  <div class="card row">
+    <div class="col" style="gap:3px">
+      <span class="lbl">กระเป๋าของ${adminMode?'คุณ (Admin)':'ฉัน'}</span>
+      <span class="money num">฿${fmt(w.balance)}</span>
+      ${sel!==null&&canAct?`<span class="cap">เลือก ฿${fmtS(sel)} → จ่ายเพิ่ม ฿${fmtS(Math.max(0,sel-mineIn))} · เหลือ ฿${fmtS(Math.max(0,w.balance-(sel-mineIn)))}</span>`:''}
     </div>
+    <div class="sp"></div>
+    <div class="row" style="gap:6px">
+      <button class="btn sec sm" data-act="modal" data-m="topup">เติมเงิน</button>
+      <button class="btn sec sm" data-act="modal" data-m="transfer">โอน</button>
+      <button class="btn sec sm" data-act="modal" data-m="more">⋯</button></div>
   </div>
-  ${s&&s.state==='FOLDED'?`<div class="ban n">🃏 คุณหมอบรอบนี้แล้ว — รอผลรอบ</div>`
-   :s&&s.state==='SITTING_OUT'?`<div class="ban n">💤 คุณพักรอบนี้ — ลงได้ในรอบถัดไป</div>`
-   :s&&r&&r.status==='OPEN'&&!needsAct(r,s)?`<div class="ban g">✅ คุณตามครบแล้วที่ ฿${fmtS(s.contributed)} — รอคนอื่น</div>`
-   :`
-  <div class="col" style="gap:7px">
-    <div class="row"><span class="lbl">เลือกยอดรวมของรอบ</span><span class="sp"></span>
-      ${cur>0?`<span class="lbl pot num">ต้องตามถึง ฿${fmtS(cur)}${mineIn>0?' · คุณลงไว้ ฿'+fmtS(mineIn):''}</span>`:'<span class="cap">คุณจะเป็นคนแรกของรอบ</span>'}</div>
+  ${canAct?`
+  <div class="col" style="gap:9px">
+    ${quick.length?`<div class="row" style="gap:6px;flex-wrap:wrap">
+      ${quick.map(([v,l])=>`<button class="pill" style="height:34px;padding:0 13px;background:var(--bg-inset);border:1px solid var(--bs);color:var(--tp);font-weight:700" data-act="pickChip" data-v="${v}">${l}</button>`).join('')}
+    </div>`:''}
+    <div class="row"><span class="lbl">หรือเลือกชิพ</span><span class="sp"></span>
+      ${cur>0?`<span class="lbl pot num">ต้องถึง ฿${fmtS(cur)}</span>`:'<span class="cap">คุณเปิดเดิมพันเป็นคนแรก</span>'}</div>
     <div class="chips">${chipHtml}</div>
     <div class="g2">
       <button class="btn sec sm" style="width:100%;height:44px" data-act="${canCheck?'check':'lockedCheck'}" ${canCheck?'':'disabled'}>
-        ${mineIn>0?'ผ่าน (ไม่เพิ่ม)':'ลง 0 บาท (ผ่าน)'}${canCheck?'':' 🔒'}</button>
-      <button class="btn sec sm" style="width:100%;height:44px" data-act="modal" data-m="custom" ${canAct?'':'disabled'}>⌨ ใส่ยอดเอง</button>
+        ${canCheck?'⏭ ผ่าน (ไม่เสียเงิน)':'⏭ ผ่านไม่ได้ 🔒'}</button>
+      <button class="btn sec sm" style="width:100%;height:44px" data-act="modal" data-m="custom">⌨ ใส่ยอดเอง</button>
     </div>
-    ${canAct&&!canCheck?`<div class="cap">ตัวเลขบนชิพคือ <b>ยอดรวมของรอบ</b> — คุณลงไว้ ฿${fmtS(mineIn)} กด ฿${fmtS(cur)} = จ่ายเพิ่ม ฿${fmtS(cur-mineIn)}</div>`:''}
-    ${!myTurn&&r&&r.status==='OPEN'?`<div class="cap">รอถึงตาคุณก่อน (โหมดบังคับเรียงตา)</div>`:''}
-  </div>`}
+    <div class="cap">ตัวเลขบนชิพคือ <b>ยอดรวมของรอบนี้</b> ไม่ใช่ยอดที่จ่ายเพิ่ม</div>
+  </div>`:''}
   `;
 }
 
@@ -1368,7 +1553,21 @@ function vFooterAction(){
   if(isAdmin() && UI.tab==='control') return '';
   const r = S.curRound, w = myWallet();
   const s = r?seatOf(r,me.id):null;
-  if(!isPlayer() || !r || r.status!=='OPEN' || r.phase==='ANTE' || !s || s.state!=='IN' || !needsAct(r,s)) return '';
+  if(!isPlayer() || !r || r.status!=='OPEN' || !s) return '';
+
+  /* ปุ่มลงกองกลาง */
+  if(r.phase==='ANTE'){
+    if(s.state!=='IN' || s.ante>0) return '';
+    const need = r.anteAmount, poor = w.balance < need;
+    return `<div class="foot">
+      <button class="btn big sec" style="width:104px;flex:none" data-act="anteSitout">พักรอบนี้<small>ไม่ลงเงิน</small></button>
+      <button class="btn big gold" data-act="ante" ${poor?'disabled':''}>
+        ${poor?'เงินไม่พอ (ต้องมี ฿'+fmtS(need)+')':'🪙 ลงกองกลาง ฿'+fmtS(need)}
+        ${poor?'':`<small>คงเหลือ ฿${fmtS(w.balance-need)}</small>`}</button>
+    </div>`;
+  }
+
+  if(s.state!=='IN' || !needsAct(r,s)) return '';
   if(S.room.settings.strict && r.turn && r.turn!==me.id)
     return `<div class="foot"><button class="btn big" disabled>รอตาคุณ… (ตาของ ${esc(nameOf(S,r.turn))})</button></div>`;
   const sel = UI.form.betSel ?? null, cur = r.currentBet, mine = s.contributed;
@@ -1553,34 +1752,44 @@ function vPayout(){
       <div class="money pot num" style="margin:6px 0">฿${fmt(r.pot)}</div>
       <div class="cap">${r.seats.filter(s=>paidTotal(s)>0).map(s=>`<span style="color:${(r.tiers[s.tier]||{}).color||'var(--tm)'}">●</span> ${esc(nameOf(S,s.memberId))} ${fmtS(paidTotal(s))}`).join(' · ')||'ไม่มีใครลงเงิน'}</div>
     </div>
-    <div class="lbl">เลือกผู้ชนะ</div>
-    <div class="rings">
+    <div class="row"><b class="h2">ใครชนะ?</b><span class="sp"></span>
+      <span class="cap">แตะเลือกได้หลายคน ระบบแบ่งเงินให้เอง</span></div>
+    <div class="wpick">
       ${r.seats.map(s=>{ const m=S.members[s.memberId]; if(!m) return '';
         const dis = s.state==='FOLDED'||s.state==='SITTING_OUT';
         const on = win[s.memberId]!==undefined;
-        return `<div class="pr ${dis?'fold':''}" data-act="${dis?'foldedWin':'togWin'}" data-mid="${s.memberId}" style="cursor:pointer">
-          <span class="av ${on?'sel':''}" style="${on?'border-color:var(--pot)':''}">${on?'✓':esc(initials(m.name))}</span>
-          <span class="nm">${esc(m.name)}</span>
-          <span class="bg">${dis?(s.state==='FOLDED'?'หมอบแล้ว':'พัก'):(paidTotal(s)?'฿'+fmtS(paidTotal(s)):'ไม่ได้ลง')}</span></div>`;
+        return `<button class="wcard ${on?'on':''} ${dis?'off':''}" data-act="${dis?'foldedWin':'togWin'}" data-mid="${s.memberId}">
+          ${on?'<span class="crown">🏆</span>':''}
+          <span class="av2" style="border-color:${on?'var(--pot)':m.color}">${on?'🏆':esc(initials(m.name))}</span>
+          <span class="n">${esc(m.name)}${s.memberId===me.id?' (คุณ)':''}</span>
+          <span class="${on?'amt':'cap'} num">${on?'฿'+fmtS(win[s.memberId]):(dis?(s.state==='FOLDED'?'หมอบ':'พัก'):'ลง ฿'+fmtS(paidTotal(s)))}</span>
+        </button>`;
       }).join('')}
     </div>
-    <div class="g2">
-      <button class="btn sec sm" style="width:100%" data-act="splitEqual">⚖ แบ่งเท่ากัน</button>
-      <button class="btn sec sm" style="width:100%" data-act="giveAll">💯 คนแรกรับทั้งกอง</button>
-    </div>
-    ${Object.keys(win).length? Object.keys(win).map(mid=>`
-      <div class="lrow"><span class="av2">${esc(initials(nameOf(S,mid)))}</span>
-        <b style="font:600 13px/1 var(--f)">${esc(nameOf(S,mid))}</b><span class="sp"></span>
-        <input class="wamt" data-mid="${mid}" value="${fmtIn(win[mid])}" inputmode="decimal" style="width:104px;text-align:right;padding:8px 10px">
-        <button data-act="rmWin" data-mid="${mid}" class="mut">✕</button></div>`).join('')
-      : `<div class="cap" style="text-align:center;padding:8px">แตะที่รูปผู้เล่นด้านบนเพื่อเลือกผู้ชนะ</div>`}
+    ${Object.keys(win).length>1?`
+      <div class="row" style="gap:6px">
+        <button class="btn sec sm" style="flex:1" data-act="splitEqual">⚖ แบ่งเท่ากัน</button>
+        <button class="btn sec sm" style="flex:1" data-act="giveAll">💯 คนแรกรับหมด</button>
+      </div>
+      <div class="col" style="gap:6px">
+        ${Object.keys(win).map(mid=>`
+        <div class="lrow"><span class="av2">${esc(initials(nameOf(S,mid)))}</span>
+          <b style="font:600 13px/1 var(--f)">${esc(nameOf(S,mid))}</b><span class="sp"></span>
+          <input class="wamt" data-mid="${mid}" value="${fmtIn(win[mid])}" inputmode="decimal" style="width:100px;text-align:right;padding:8px 10px">
+          <button data-act="rmWin" data-mid="${mid}" class="mut">✕</button></div>`).join('')}
+      </div>`:''}
     ${eligible.length===0?'<div class="ban y">ไม่มีผู้เล่นที่มีสิทธิ์รับกอง</div>':''}
-    <div class="ban ${ok?'g':left>0?'y':'r'}">
-      <b class="num">กอง ฿${fmtS(r.pot)} · จ่าย ฿${fmtS(paid)} · ${left>=0?'เหลือ':'เกิน'} ฿${fmtS(Math.abs(left))}</b>
-      <span class="sp"></span>${ok?'✅ ยอดตรงพอดี':left>0?'⚠️ ยังจ่ายไม่ครบ':'⛔ จ่ายเกินกอง'}
-    </div>
+    ${!ok&&Object.keys(win).length?`<div class="ban ${left>0?'y':'r'}">
+      <b class="num">${left>0?'ยังเหลือ ฿'+fmtS(left):'เกินกอง ฿'+fmtS(-left)}</b>
+      <span class="sp"></span>แก้ยอดให้รวมเป็น ฿${fmtS(r.pot)}</div>`:''}
   </div>
-  <div class="foot"><button class="btn big gold" data-act="doPayout" ${ok?'':'disabled'}>🏁 ยืนยันจ่ายเงิน &amp; จบรอบ</button></div>`;
+  <div class="foot">${
+    Object.keys(win).length===0
+      ? `<button class="btn big" disabled>เลือกผู้ชนะก่อน</button>`
+      : `<button class="btn big gold" data-act="doPayout" ${ok?'':'disabled'}>
+           🏆 ${Object.keys(win).length===1?esc(nameOf(S,Object.keys(win)[0]))+' รับ ฿'+fmtS(r.pot):'จ่าย '+Object.keys(win).length+' คน ฿'+fmtS(paid)}
+           <small>${ok?'แตะเพื่อจ่ายเงินและจบรอบ':'ยอดยังไม่ตรงกับกอง'}</small></button>`
+  }</div>`;
 }
 
 /* ---------- wallet / history / players / settings / settle ---------- */
@@ -1727,9 +1936,12 @@ function vSettings(){
       <button class="btn sec sm" data-act="saveAnte">บันทึก</button></div>
     <div class="cap">มีผลกับรอบถัดไป · ใส่ 0 = ข้ามขั้นตอนลงกองกลาง</div>
   </div>`:''}
-  <div class="card col"><b class="h2">การแสดงผล</b>
+  <div class="card col"><b class="h2">การแสดงผล &amp; เสียง</b>
     <div class="row"><span class="lbl">ธีม</span><span class="sp"></span>
       <button class="btn sec sm" data-act="theme">${UI.theme==='dark'?'🌙 มืด':'☀️ สว่าง'}</button></div>
+    <div class="row"><span class="lbl">เสียงเตือนเมื่อถึงตาคุณ</span><span class="sp"></span>
+      <button class="btn sec sm" data-act="sound">${Sfx.on?'🔔 เปิด':'🔕 ปิด'}</button></div>
+    <div class="cap">มีเสียงและสั่นเตือนเมื่อ: ถึงตาคุณลงเดิมพัน · ถึงคิวลงกองกลาง · คุณชนะรอบ</div>
   </div>
   ${adm?`<button class="btn dgr" data-act="nav" data-s="settle">🏁 ปิดห้อง &amp; เคลียร์ยอด</button>`:''}
   <button class="btn ghost" data-act="leave">ออกจากห้อง (ไม่ลบข้อมูล)</button>`;
@@ -1971,15 +2183,21 @@ function mSummary(r){
   const myWin = (r.winners.find(w=>w.memberId===me.id)||{}).amount||0;
   const myBet = mySeat?paidTotal(mySeat):0;
   const net = myWin-myBet;
+  const iWon = myWin>0;
   return mWrap(`<b class="h1" style="text-align:center">🏁 จบรอบที่ ${r.index}</b>
-    <div class="card col" style="align-items:center;background:var(--pot-bg);border-color:var(--pot)">
-      <span class="lbl pot">🏆 ผู้ชนะ</span>
-      <b class="h2" style="text-align:center">${r.winners.map(w=>esc(nameOf(S,w.memberId))+' ฿'+fmtS(w.amount)).join(' · ')||'ไม่มี (กองว่าง)'}</b>
+    <div class="card col" style="align-items:center;gap:9px;background:var(--pot-bg);border-color:var(--pot)">
+      <span style="font-size:40px;line-height:1">🏆</span>
+      ${r.winners.length
+        ? r.winners.map(w=>`<div class="col" style="align-items:center;gap:2px">
+             <b class="h1" style="color:var(--pot)">${esc(nameOf(S,w.memberId))}${w.memberId===me.id?' (คุณ)':''}</b>
+             <span class="money num pot">+฿${fmtS(w.amount)}</span></div>`).join('')
+        : '<b class="h2">ไม่มีผู้ชนะ (กองว่าง)</b>'}
+      ${chipStack(r.totalIn,'sm')}
     </div>
-    ${mySeat?`<div class="card col" style="align-items:center">
-      <span class="lbl">ผลของคุณ</span>
-      <span class="cap">ลงไป ฿${fmtS(myBet)} · ได้รับ ฿${fmtS(myWin)}</span>
-      <span class="money num ${net>0?'in':net<0?'out':''}">${net>0?'+':''}฿${fmtS(Math.abs(net))}</span>
+    ${mySeat?`<div class="card col" style="align-items:center;gap:3px;${iWon?'border-color:var(--brand)':''}">
+      <span class="lbl">ผลของคุณรอบนี้</span>
+      <span class="money num ${net>0?'in':net<0?'out':''}">${net>0?'+':net<0?'−':''}฿${fmtS(Math.abs(net))}</span>
+      <span class="cap">ลงไป ฿${fmtS(myBet)} · ได้รับ ฿${fmtS(myWin)} · กระเป๋าตอนนี้ ฿${fmtS(myWallet().balance)}</span>
     </div>`:''}
     ${(r.streets&&r.streets.length)?`<div class="card col" style="gap:6px">
       <b class="lbl">เงินที่ลงแต่ละรอบ</b>
@@ -2009,6 +2227,7 @@ const A = {
     document.documentElement.setAttribute('data-theme', UI.theme==='light'?'light':'dark');
     LS.set('pk:theme',UI.theme); render(); },
   back(){ UI.screen='landing'; render(); },
+  sound(){ const on=Sfx.toggle(); toast(on?'🔔 เปิดเสียงเตือนแล้ว':'🔕 ปิดเสียงเตือน','g'); render(); },
   forceLanding(){ LastRoom.clear(); Store.close(); S=blankState(); UI.screen='landing'; render(); },
   nav(d){ UI.screen=d.s; UI.form.winners=undefined; UI.modal=null; render(); },
   tab(d){ UI.tab=d.t; render(); },
@@ -2074,7 +2293,7 @@ const A = {
   approveReq(d){ cmd({t:'REQ_APPROVED',rid:d.rid}); },
   rejectReq(d){ cmd({t:'REQ_REJECTED',rid:d.rid,reason:''}); },
 
-  pickChip(d){ UI.form.betSel = Number(d.v); render(); },
+  pickChip(d){ UI.form.betSel = Number(d.v); Sfx.chip(); render(); },
   lockedChip(d){ const r=S.curRound; toast('ต้องลงอย่างน้อย ฿'+fmtS(r?r.currentBet:0),'r'); },
   lockedCheck(){ toast('ลง 0 ได้เฉพาะรอบที่ยังไม่มีใครลงเงิน','r'); },
   async bet(){ const v=UI.form.betSel; if(v==null) return;
@@ -2121,9 +2340,14 @@ const A = {
     [list[i],list[j]] = [list[j],list[i]];
     cmd({t:'SEATS_REORDER',order:list});
   },
+  /** เลือก/ยกเลิกผู้ชนะ แล้วแบ่งเงินให้อัตโนมัติทันที — ไม่ต้องกดปุ่มแบ่งเอง */
   togWin(d){ const w = UI.form.winners||{};
     if(w[d.mid]!==undefined) delete w[d.mid]; else w[d.mid]=0;
-    UI.form.winners=w; render(); },
+    const ks=Object.keys(w), pot=S.curRound?S.curRound.pot:0;
+    if(ks.length){ const base=Math.floor(pot/ks.length), rem=pot-base*ks.length;
+      ks.forEach((k,i)=>w[k]=base+(i===0?rem:0));
+      if(rem&&ks.length>1) toast('เศษ ฿'+fmtS(rem)+' ตกที่ '+nameOf(S,ks[0]),'y'); }
+    UI.form.winners=w; Sfx.chip(); render(); },
   foldedWin(){ toast('ผู้เล่นนี้หมอบรอบนี้แล้ว','r'); },
   rmWin(d){ const w=UI.form.winners||{}; delete w[d.mid]; UI.form.winners=w; render(); },
   splitEqual(){ const w=UI.form.winners||{}; const ks=Object.keys(w); if(!ks.length) return toast('เลือกผู้ชนะก่อน','r');
@@ -2221,6 +2445,7 @@ function getFbCfg(){ return sbCfg(); }
 
 /* ---------- event delegation ---------- */
 document.addEventListener('click', e=>{
+  Sfx.unlock();
   const el = e.target.closest('[data-act]');
   if(!el){ return; }
   if(el.dataset.act==='closeMask' && e.target.closest('[data-stop]')) return;
@@ -2247,6 +2472,7 @@ document.addEventListener('input', e=>{
 });
 
 /* ---------- boot ---------- */
+Sfx.init();
 UI.theme = LS.get('pk:theme')||'dark';
 document.documentElement.setAttribute('data-theme', UI.theme==='light'?'light':'dark');
 if(sbCfg()) Store.mode='cloud';
