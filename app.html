@@ -214,6 +214,13 @@ const esc = s => String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;'
 const B = n => Math.round(n*100);                       // บาท -> สตางค์
 const fmt = s => (s/100).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtS = s => (s/100).toLocaleString('th-TH',{maximumFractionDigits:2});
+/** สำหรับใส่เป็นค่าตั้งต้นในช่องกรอก — ห้ามมีคอมมา ไม่งั้นอ่านกลับมาผิด */
+const fmtIn = s => String((s||0)/100);
+/** อ่านจำนวนเงินจากช่องกรอก ทนคอมมา ช่องว่าง และสัญลักษณ์บาท */
+const parseAmt = v => {
+  const n = parseFloat(String(v==null?'':v).replace(/[,\s฿]/g,''));
+  return isFinite(n) ? n : 0;
+};
 const initials = n => (n||'?').trim().slice(0,2);
 const roomCode = () => { const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let r=''; for(let i=0;i<6;i++) r+=A[Math.floor(Math.random()*A.length)]; return r; };
 const nowT = () => Date.now();
@@ -1494,7 +1501,7 @@ function vApprovals(){
         <div class="row"><span class="pill">🪑 ขอเข้าเล่น</span></div>
         <div class="row"><span class="av2">${esc(initials(nameOf(S,rq.to)))}</span><b class="h2">${esc(nameOf(S,rq.to))}</b></div>
         <div class="row"><span class="lbl">เงินเริ่มต้น</span><span class="sp"></span>
-          <input id="ja_${rq.id}" value="${st.autoGrant?fmtS(st.startAmount):0}" inputmode="decimal" style="width:110px;text-align:right"></div>
+          <input id="ja_${rq.id}" value="${st.autoGrant?fmtIn(st.startAmount):0}" inputmode="decimal" style="width:110px;text-align:right"></div>
         <div class="g2"><button class="btn ghost" data-act="rejectJoin" data-mid="${rq.to}">ปฏิเสธ</button>
           <button class="btn" data-act="approveJoin" data-mid="${rq.to}" data-rid="${rq.id}">✓ อนุมัติ</button></div>
       </div>`;
@@ -1564,7 +1571,7 @@ function vPayout(){
     ${Object.keys(win).length? Object.keys(win).map(mid=>`
       <div class="lrow"><span class="av2">${esc(initials(nameOf(S,mid)))}</span>
         <b style="font:600 13px/1 var(--f)">${esc(nameOf(S,mid))}</b><span class="sp"></span>
-        <input class="wamt" data-mid="${mid}" value="${fmtS(win[mid])}" inputmode="decimal" style="width:104px;text-align:right;padding:8px 10px">
+        <input class="wamt" data-mid="${mid}" value="${fmtIn(win[mid])}" inputmode="decimal" style="width:104px;text-align:right;padding:8px 10px">
         <button data-act="rmWin" data-mid="${mid}" class="mut">✕</button></div>`).join('')
       : `<div class="cap" style="text-align:center;padding:8px">แตะที่รูปผู้เล่นด้านบนเพื่อเลือกผู้ชนะ</div>`}
     ${eligible.length===0?'<div class="ban y">ไม่มีผู้เล่นที่มีสิทธิ์รับกอง</div>':''}
@@ -1713,10 +1720,10 @@ function vSettings(){
     <label class="row"><span class="lbl">อนุมัติเข้าเล่นแล้วเติมเงินให้อัตโนมัติ</span><span class="sp"></span>
       <input type="checkbox" data-act="setToggle" data-k="autoGrant" ${s.autoGrant?'checked':''} style="width:auto"></label>
     <div class="row"><span class="lbl">เงินเริ่มต้นต่อคน</span><span class="sp"></span>
-      <input id="s_start" value="${fmtS(s.startAmount)}" inputmode="decimal" style="width:110px;text-align:right">
+      <input id="s_start" value="${fmtIn(s.startAmount)}" inputmode="decimal" style="width:110px;text-align:right">
       <button class="btn sec sm" data-act="saveStart">บันทึก</button></div>
     <div class="row"><span class="lbl">ลงกองกลางต่อคน ต่อรอบ</span><span class="sp"></span>
-      <input id="s_ante" value="${fmtS(s.anteAmount||0)}" inputmode="decimal" style="width:110px;text-align:right">
+      <input id="s_ante" value="${fmtIn(s.anteAmount||0)}" inputmode="decimal" style="width:110px;text-align:right">
       <button class="btn sec sm" data-act="saveAnte">บันทึก</button></div>
     <div class="cap">มีผลกับรอบถัดไป · ใส่ 0 = ข้ามขั้นตอนลงกองกลาง</div>
   </div>`:''}
@@ -1848,7 +1855,7 @@ function mTransfer(mode){
   const others = playersList().filter(p=>p.id!==me.id);
   const to = UI.form.to || (UI.modal.mid||null);
   const v = UI.form.amt||'';
-  const amt = B(parseFloat(v||'0')||0);
+  const amt = B(parseAmt(v)||0);
   const w = myWallet();
   const title = mode==='give'?'โอนเงินให้ผู้เล่น':mode==='borrow'?'ขอยืมเงินจากผู้เล่น':'คืนหนี้';
   const target = to?S.members[to]:null;
@@ -1890,7 +1897,7 @@ function mManage(mid){
   const m = S.members[mid], w = S.wallets[mid]||{balance:0,issuedIn:0};
   const v = UI.form.amt||'';
   const mode = UI.form.mmode||'add';
-  const amt = B(parseFloat(v||'0')||0);
+  const amt = B(parseAmt(v)||0);
   const ni = netIssued(S);
   return mWrap(`
     <b class="h1" style="text-align:center">👑 จัดการเงิน — ${esc(m.name)}</b>
@@ -2020,10 +2027,10 @@ const A = {
 
   async doCreate(){
     const name = $('#f_name').value.trim() || 'วงของฉัน';
-    const start = B(parseFloat($('#f_start').value)||0);
-    const chips = $('#f_chips').value.split(',').map(x=>parseFloat(x.trim())).filter(x=>x>0);
+    const start = B(parseAmt($('#f_start').value)||0);
+    const chips = $('#f_chips').value.split(',').map(x=>parseAmt(x)).filter(x=>x>0);
     const code = roomCode();
-    const ante = B(parseFloat($('#f_ante').value)||0);
+    const ante = B(parseAmt($('#f_ante').value)||0);
     try{ await Store.open(code, Store.mode); }catch(e){ return toast(e.message,'r'); }
     await Store.append({t:'ROOM_CREATED',code,name,name2:me.name,maxSeats:UI.form.seats||5,
       settings:{startAmount:start, anteAmount:ante, chips:chips.length?chips:[5,10,20,30,50,100],
@@ -2060,7 +2067,7 @@ const A = {
   cancelJoin(){ cmd({t:'JOIN_REJECTED',mid:me.id,reason:'ยกเลิกเอง',by:S.room.ownerId}); },
   approveJoin(d){
     const inp = document.getElementById('ja_'+d.rid);
-    const amt = inp ? B(parseFloat(inp.value)||0) : (S.room.settings.autoGrant?S.room.settings.startAmount:0);
+    const amt = inp ? B(parseAmt(inp.value)||0) : (S.room.settings.autoGrant?S.room.settings.startAmount:0);
     cmd({t:'JOIN_APPROVED',mid:d.mid,amount:amt});
   },
   rejectJoin(d){ cmd({t:'JOIN_REJECTED',mid:d.mid,reason:''}); },
@@ -2141,28 +2148,28 @@ const A = {
     else if(d.k==='.'){ if(!v.includes('.')) v=(v||'0')+'.'; }
     else { if(v.includes('.')&&v.split('.')[1].length>=2) return; v=(v==='0'?'':v)+d.k; }
     UI.form.amt=v; render(); },
-  amtAdd(d){ UI.form.amt = String((parseFloat(UI.form.amt||'0')||0)+Number(d.v)); render(); },
+  amtAdd(d){ UI.form.amt = String((parseAmt(UI.form.amt)||0)+Number(d.v)); render(); },
   amtClr(){ UI.form.amt=''; render(); },
   amtAll(){ UI.form.amt = String(myWallet().balance/100); render(); },
   amtAllOf(d){ UI.form.amt = String((S.wallets[d.mid]||{balance:0}).balance/100); render(); },
   pickTo(d){ UI.form.to=d.mid; render(); },
   mmode(d){ UI.form.mmode=d.v; UI.form.amt=''; render(); },
 
-  async doTopup(){ const a=B(parseFloat(UI.form.amt||'0')||0); if(a<=0) return toast('ใส่จำนวนเงิน','r');
+  async doTopup(){ const a=B(parseAmt(UI.form.amt)||0); if(a<=0) return toast('ใส่จำนวนเงิน','r');
     if(isAdmin()){ if(await cmd({t:'ISSUE',mid:me.id,amount:a,kind:'TOPUP_GRANT',note:'Admin เติมให้ตัวเอง (SELF_ISSUE)'})) A.closeModal(); }
     else if(await cmd({t:'TOPUP_REQUESTED',amount:a,note:''})){ A.closeModal(); toast('ส่งคำขอแล้ว รอ Admin อนุมัติ','y'); } },
-  async doCustom(){ const a=B(parseFloat(UI.form.amt||'0')||0); if(a<=0) return toast('ใส่จำนวนเงิน','r');
+  async doCustom(){ const a=B(parseAmt(UI.form.amt)||0); if(a<=0) return toast('ใส่จำนวนเงิน','r');
     UI.form.betSel=a; A.closeModal(); },
-  async doTransfer(){ const a=B(parseFloat(UI.form.amt||'0')||0), to=UI.form.to;
+  async doTransfer(){ const a=B(parseAmt(UI.form.amt)||0), to=UI.form.to;
     if(!to||a<=0) return;
     if(await cmd({t:'TRANSFER',from:me.id,to,amount:a,kind:'TRANSFER_GIVE'})){ A.closeModal(); toast('โอนสำเร็จ −฿'+fmtS(a),'g'); } },
-  async doRepay(){ const a=B(parseFloat(UI.form.amt||'0')||0), to=UI.form.to;
+  async doRepay(){ const a=B(parseAmt(UI.form.amt)||0), to=UI.form.to;
     if(!to||a<=0) return;
     if(await cmd({t:'TRANSFER',from:me.id,to,amount:a,kind:'DEBT_REPAY'})){ A.closeModal(); toast('คืนหนี้แล้ว','g'); } },
-  async doBorrow(){ const a=B(parseFloat(UI.form.amt||'0')||0), from=UI.form.to;
+  async doBorrow(){ const a=B(parseAmt(UI.form.amt)||0), from=UI.form.to;
     if(!from||a<=0) return;
     if(await cmd({t:'BORROW_REQUESTED',from,to:me.id,amount:a,note:''})){ A.closeModal(); toast('ส่งคำขอแล้ว รอยินยอม','y'); } },
-  async doManage(d){ const a=B(parseFloat(UI.form.amt||'0')||0); if(a<=0) return;
+  async doManage(d){ const a=B(parseAmt(UI.form.amt)||0); if(a<=0) return;
     const ok = UI.form.mmode==='ret'
       ? await cmd({t:'RETURN_TO_BANK',mid:d.mid,amount:a,note:'Admin คืนเข้า BANK'})
       : await cmd({t:'ISSUE',mid:d.mid,amount:a,kind:'TOPUP_GRANT',note:'Admin เติมให้'});
@@ -2172,8 +2179,8 @@ const A = {
 
   seatDelta(d){ cmd({t:'SEATS_SET',n:S.room.maxSeats+Number(d.d)}); },
   setToggle(d,el){ const s={}; s[d.k]=el.checked; cmd({t:'SETTINGS_SET',settings:s}); },
-  saveStart(){ const v=B(parseFloat($('#s_start').value)||0); cmd({t:'SETTINGS_SET',settings:{startAmount:v}}); toast('บันทึกแล้ว','g'); },
-  saveAnte(){ const v=B(parseFloat($('#s_ante').value)||0); cmd({t:'SETTINGS_SET',settings:{anteAmount:v}}); toast('บันทึกแล้ว มีผลรอบถัดไป','g'); },
+  saveStart(){ const v=B(parseAmt($('#s_start').value)||0); cmd({t:'SETTINGS_SET',settings:{startAmount:v}}); toast('บันทึกแล้ว','g'); },
+  saveAnte(){ const v=B(parseAmt($('#s_ante').value)||0); cmd({t:'SETTINGS_SET',settings:{anteAmount:v}}); toast('บันทึกแล้ว มีผลรอบถัดไป','g'); },
   copyCode(){ navigator.clipboard?.writeText(S.room.code); toast('คัดลอกรหัสห้องแล้ว','g'); },
   hfilter(d){ UI.form.hfilter=d.f; render(); },
   async returnAll(){
@@ -2227,7 +2234,7 @@ document.addEventListener('change', e=>{
 document.addEventListener('input', e=>{
   if(e.target.classList.contains('wamt')){
     const w = UI.form.winners||{};
-    w[e.target.dataset.mid] = B(parseFloat(e.target.value)||0);
+    w[e.target.dataset.mid] = B(parseAmt(e.target.value)||0);
     UI.form.winners=w;
     // อัปเดตเฉพาะแถบยอด ไม่ re-render ทั้งหน้า (กัน input เสีย focus)
     const r=S.curRound, paid=Object.values(w).reduce((a,b)=>a+b,0), left=r.pot-paid;
