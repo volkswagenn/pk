@@ -43,7 +43,7 @@ input:focus,select:focus{border-color:var(--brand)}
 ::-webkit-scrollbar{width:0;height:0}
 
 /* layout */
-.hdr{flex:0 0 auto;height:60px;display:flex;align-items:center;gap:9px;padding:0 12px;border-bottom:1px solid var(--border);background:var(--bg-surface);z-index:20}
+.hdr{flex:0 0 auto;height:50px;display:flex;align-items:center;gap:9px;padding:0 12px;border-bottom:1px solid var(--border);background:var(--bg-surface);z-index:20}
 .hdr b{font:700 15px/1 var(--f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hdr .code{font:600 11px/1 var(--f);color:var(--ts);background:var(--chip);padding:5px 8px;border-radius:6px;letter-spacing:1px}
 /* กระเป๋าเงินบน top bar */
@@ -66,12 +66,12 @@ input:focus,select:focus{border-color:var(--brand)}
   padding:9px 11px 12px;display:flex;flex-direction:column;gap:8px}
 /* สำคัญ: ห้ามให้บล็อกลูกถูกบีบเมื่อเนื้อหายาวเกินจอ ไม่งั้นแถววงกลมผู้เล่นจะแบนหายไป */
 .body > *{flex:0 0 auto}
-.nav{flex:0 0 auto;height:60px;border-top:1px solid var(--border);background:var(--bg-surface);display:grid;align-items:center;padding-bottom:env(safe-area-inset-bottom)}
+.nav{flex:0 0 auto;height:52px;border-top:1px solid var(--border);background:var(--bg-surface);display:grid;align-items:center;padding-bottom:env(safe-area-inset-bottom)}
 .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;font:600 10.5px/1 var(--f);color:var(--tm);padding:6px 0;position:relative}
 .nav button .i{font-size:19px}
 .nav button.on{color:var(--brand4)}
 .dot{position:absolute;top:2px;right:50%;transform:translateX(20px);min-width:17px;height:17px;border-radius:9px;background:var(--danger);color:#fff;font:700 10px/17px var(--f);text-align:center;padding:0 4px}
-.foot{flex:0 0 auto;padding:7px 11px;display:flex;gap:8px;background:var(--bg-base);border-top:1px solid var(--border)}
+.foot{flex:0 0 auto;padding:5px 10px;display:flex;gap:8px;background:var(--bg-base);border-top:1px solid var(--border)}
 
 /* cards + text */
 .card{background:var(--bg-surface);border:1px solid var(--border);border-radius:13px;padding:10px 11px}
@@ -91,7 +91,7 @@ input:focus,select:focus{border-color:var(--brand)}
 .btn{height:52px;border-radius:12px;background:var(--brand);color:#04140D;font:700 15px/1 var(--f);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:100%;transition:transform .1s}
 .btn:active{transform:scale(.98)}
 .btn small{font:500 11px/1 var(--f);color:rgba(4,20,13,.72)}
-.btn.big{height:56px;font-size:16px}
+.btn.big{height:50px;font-size:15px}
 .btn.sec{background:var(--bg-inset);border:1px solid var(--bs);color:var(--tp)}
 .btn.sec small{color:var(--tm)}
 .btn.gold{background:var(--pot);color:#241705}
@@ -131,7 +131,7 @@ input:focus,select:focus{border-color:var(--brand)}
 /* player rings */
 .rings{display:flex;gap:7px;overflow-x:auto;padding:2px 1px 3px;flex:0 0 auto;min-height:78px;align-items:flex-start}
 /* ---- โต๊ะโป๊กเกอร์ ---- */
-.ptable{position:relative;flex:0 0 auto;height:min(340px,52vh);min-height:250px;margin:2px 0}
+.ptable{position:relative;flex:0 0 auto;height:min(238px,33vh);min-height:196px;margin:0}
 .felt{position:absolute;left:11%;top:14%;right:11%;bottom:14%;border-radius:50%;
   background:radial-gradient(ellipse at 50% 42%, #1d6b47 0%, #14503a 55%, #0e3d2c 100%);
   border:5px solid #3a2a17;
@@ -140,10 +140,18 @@ input:focus,select:focus{border-color:var(--brand)}
 .pcenter{position:absolute;left:50%;top:47%;transform:translate(-50%,-50%);
   display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;max-width:62%;pointer-events:none}
 .pcenter .plbl{font:600 10.5px/1 var(--f);color:rgba(255,235,190,.85)}
-.pcenter .pamt{font:700 clamp(24px,7.5vw,34px)/1 var(--f);color:#FFD98A;text-shadow:0 2px 8px rgba(0,0,0,.55)}
+.pcenter .pamt{font:700 clamp(20px,6vw,27px)/1 var(--f);color:#FFD98A;text-shadow:0 2px 8px rgba(0,0,0,.55)}
 .pcenter .psub{font:500 9.5px/1.35 var(--f);color:rgba(255,255,255,.75);max-width:100%}
-.pseat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:58px}
-.pseat .av{width:38px;height:38px;border-radius:99px;background:var(--bg-surface);border:2.5px solid var(--border);
+.pcenter .pnote{font:600 8.5px/1.4 ui-monospace,Menlo,monospace;color:rgba(255,220,150,.8);
+  background:rgba(0,0,0,.25);border-radius:7px;padding:2px 7px;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mypaid{display:flex;align-items:center;gap:6px;font:500 10.5px/1 var(--f);color:var(--ts);
+  background:var(--bg-surface);border:1px solid var(--border);border-radius:9px;padding:5px 10px;
+  overflow:hidden;white-space:nowrap}
+.mypaid b{color:var(--pot);font-size:12px}
+.mypaid .d{color:var(--tm);overflow:hidden;text-overflow:ellipsis}
+.pseat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;width:56px}
+.pseat .av{width:33px;height:33px;border-radius:99px;background:var(--bg-surface);border:2.5px solid var(--border);
   display:flex;align-items:center;justify-content:center;font:700 11.5px/1 var(--f);color:var(--tp);
   box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .pseat .nm{font:500 9.5px/1.1 var(--f);color:var(--ts);max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
@@ -204,13 +212,13 @@ input:focus,select:focus{border-color:var(--brand)}
   box-shadow:0 3px 7px rgba(0,0,0,.45), inset 0 -2px 5px rgba(0,0,0,.28), inset 0 2px 4px rgba(255,255,255,.22);
   transition:transform .12s}
 .pchip .edge{position:absolute;inset:0;border-radius:50%;
-  background:conic-gradient(rgba(255,255,255,.92) 0 7%, transparent 7% 25%, rgba(255,255,255,.92) 25% 32%,
-    transparent 32% 50%, rgba(255,255,255,.92) 50% 57%, transparent 57% 75%, rgba(255,255,255,.92) 75% 82%, transparent 82%);
-  -webkit-mask:radial-gradient(circle, transparent 63%, #000 64%, #000 88%, transparent 89%);
-          mask:radial-gradient(circle, transparent 63%, #000 64%, #000 88%, transparent 89%)}
-.pchip .disc{position:absolute;inset:19%;border-radius:50%;background:rgba(255,255,255,.16);
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.18)}
-.pchip .v{position:relative;z-index:2;font:800 15px/1 var(--f);letter-spacing:-.4px}
+  background:repeating-conic-gradient(rgba(255,255,255,.95) 0 5.5%, rgba(0,0,0,.14) 5.5% 12.5%);
+  -webkit-mask:radial-gradient(circle, transparent 60%, #000 61%, #000 90%, transparent 91%);
+          mask:radial-gradient(circle, transparent 60%, #000 61%, #000 90%, transparent 91%)}
+.pchip .disc{position:absolute;inset:20%;border-radius:50%;background:rgba(255,255,255,.14);
+  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55), inset 0 0 0 3px rgba(0,0,0,.12), inset 0 2px 4px rgba(255,255,255,.25)}
+.pchip .v{position:relative;z-index:2;font:800 15px/1 var(--f);letter-spacing:-.4px;
+  text-shadow:0 1px 2px rgba(0,0,0,.25)}
 .pchip:active{transform:scale(.93)}
 .pchip.on{transform:translateY(-5px) scale(1.04);
   box-shadow:0 8px 16px rgba(0,0,0,.5), 0 0 0 3px var(--brand4), inset 0 -2px 5px rgba(0,0,0,.28)}
@@ -252,14 +260,14 @@ input:focus,select:focus{border-color:var(--brand)}
 .toast.y{border-color:var(--pending);color:var(--pending)}
 
 /* ===== แผงบอกว่าต้องทำอะไรตอนนี้ ===== */
-.turnbox{border-radius:13px;padding:9px 12px;display:flex;flex-direction:column;gap:3px;
+.turnbox{border-radius:11px;padding:6px 11px;display:flex;flex-direction:column;gap:2px;
   border:1px solid var(--border);background:var(--bg-surface)}
 .turnbox.mine{border-color:var(--pending);background:var(--pend-bg);animation:pls 2s infinite}
 .turnbox.done{border-color:var(--brand);background:var(--brand-bg)}
-.turnbox .who{font:700 15px/1.25 var(--f)}
+.turnbox .who{font:700 13.5px/1.25 var(--f)}
 .turnbox.mine .who{color:var(--pending)}
 .turnbox.done .who{color:var(--brand4)}
-.turnbox .sub{font:500 11.5px/1.35 var(--f);color:var(--ts)}
+.turnbox .sub{font:500 10.5px/1.3 var(--f);color:var(--ts)}
 /* ===== แถบความคืบหน้าลงกองกลาง ===== */
 .antebox{border:1px solid var(--pot);background:var(--pot-bg);border-radius:13px;padding:10px 12px;
   display:flex;flex-direction:column;gap:7px}
@@ -338,16 +346,32 @@ const SB_TABLE = 'pk_events';
 const SB_CDN   = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 
 /* สีชิพตามมูลค่า — จัดให้ชุดพื้นฐาน 20/40/60/80/100 ต่างสีกันชัดทั้ง 5 ใบ */
-const CHIP_FACE = v =>
-  v<=1   ? {bg:'linear-gradient(145deg,#FDFDFD,#D8DEE6)', ink:'#10151C'} :   // ขาว
-  v<=5   ? {bg:'linear-gradient(145deg,#F0575C,#C8272D)', ink:'#fff'} :      // แดง
-  v<=10  ? {bg:'linear-gradient(145deg,#57ABFF,#1F6FCB)', ink:'#fff'} :      // ฟ้า
-  v<=20  ? {bg:'linear-gradient(145deg,#2BC98A,#0E7F55)', ink:'#fff'} :      // เขียว
-  v<=40  ? {bg:'linear-gradient(145deg,#FFB061,#E07B18)', ink:'#2A1403'} :   // ส้ม
-  v<=60  ? {bg:'linear-gradient(145deg,#9B8CFF,#5B49E0)', ink:'#fff'} :      // ม่วง
-  v<=80  ? {bg:'linear-gradient(145deg,#FF6FA5,#D62F72)', ink:'#fff'} :      // ชมพู
-  v<=100 ? {bg:'linear-gradient(145deg,#3A4250,#14181F)', ink:'#fff'} :      // ดำ
-           {bg:'linear-gradient(145deg,#FFD264,#E0A21B)', ink:'#241705'};    // ทอง (500+)
+/* สีชิพแบบคาสิโน — จับคู่มูลค่าตรงตัวก่อน (ไม่ซ้ำกันในชุดเดียวกันแน่นอน) แล้วค่อย fallback ตามช่วง */
+const CHIP_EXACT = {
+  1:  ['#FDFDFD','#C9D1DB','#10151C'],   // ขาว
+  5:  ['#F0575C','#B01E24','#fff'],      // แดง
+  10: ['#57ABFF','#1B62B8','#fff'],      // ฟ้า
+  20: ['#2BC98A','#0C7A50','#04140D'],   // เขียว
+  25: ['#4ECDC4','#1E8E86','#04211F'],   // เขียวน้ำทะเล
+  30: ['#FFD24D','#D9A211','#241705'],   // เหลือง
+  40: ['#FF9A4D','#D96A10','#2A1403'],   // ส้ม
+  50: ['#5B78F0','#2C41A8','#fff'],      // น้ำเงิน
+  60: ['#A88CFF','#6A4BE0','#fff'],      // ม่วง
+  70: ['#8AD44A','#4E8A1C','#122A02'],   // เขียวมะนาว
+  80: ['#FF6FA5','#C42566','#fff'],      // ชมพู
+  90: ['#7ADBF0','#2E93AC','#062A33'],   // ฟ้าน้ำแข็ง
+  100:['#4A5462','#12161D','#fff'],      // ดำ
+  500:['#E9E2FF','#9B7BD0','#2A1050'],   // เงินม่วง
+  1000:['#FFD264','#C8901A','#241705'],  // ทอง
+};
+const CHIP_FACE = v => {
+  const e = CHIP_EXACT[v] ||
+    (v<=1?CHIP_EXACT[1]:v<=5?CHIP_EXACT[5]:v<=10?CHIP_EXACT[10]:v<=20?CHIP_EXACT[20]:
+     v<=25?CHIP_EXACT[25]:v<=30?CHIP_EXACT[30]:v<=40?CHIP_EXACT[40]:v<=50?CHIP_EXACT[50]:
+     v<=60?CHIP_EXACT[60]:v<=70?CHIP_EXACT[70]:v<=80?CHIP_EXACT[80]:v<=90?CHIP_EXACT[90]:
+     v<=100?CHIP_EXACT[100]:v<=500?CHIP_EXACT[500]:CHIP_EXACT[1000]);
+  return {bg:`linear-gradient(145deg,${e[0]},${e[1]})`, ink:e[2], hi:e[0]};
+};
 
 const TIER_COLORS = ['#22C58A','#D4A24C','#3D9CF5','#C77DFF','#FF9F45','#FF6FA5'];
 const TIER_INK    = ['#04140D','#241705','#04121F','#1B0A26','#2A1403','#2B0A18'];
@@ -760,6 +784,9 @@ function validate(st, ev){
         if(s && s.state==='FOLDED') return 'ผู้เล่นนี้หมอบรอบนี้แล้ว';
         if(w.amount<0) return 'จำนวนเงินไม่ถูกต้อง';
       }
+      // ถ้าระบุคนเริ่มรอบถัดไปมา ต้องเป็นหนึ่งในผู้ชนะเท่านั้น
+      if(ev.startNextId && !ev.winners.some(w=>w.memberId===ev.startNextId && w.amount>0))
+        return 'ผู้เริ่มรอบถัดไปต้องเป็นผู้ชนะที่ได้รับเงิน';
       return null;
     }
     case 'SEATS_SET': {
@@ -1015,7 +1042,9 @@ function apply(st, ev){
       r.winners=ev.winners.filter(w=>w.amount>0); r.status='SETTLED'; r.settledAt=ev.at;
       // 🏆 คนที่ได้เงินมากสุดรอบนี้ = ผู้เริ่มของรอบถัดไป
       if(r.winners.length){
-        st.lastWinnerId = r.winners.slice().sort((a,b)=>b.amount-a.amount)[0].memberId;
+        // Admin เลือกได้ว่าผู้ชนะคนไหนเริ่มรอบถัดไป · ไม่ได้เลือก = คนที่ได้เงินมากสุด
+        st.lastWinnerId = ev.startNextId || r.winners.slice().sort((a,b)=>b.amount-a.amount)[0].memberId;
+        r.startNextId = st.lastWinnerId;
       }
       const names = r.winners.map(w=>nameOf(st,w.memberId)+' ฿'+fmtS(w.amount)).join(' · ');
       feed(st,ev,'🏆','จบรอบที่ '+r.index+(names?' — '+names:' (ไม่มีเงินในกอง)'),'g');
@@ -1437,9 +1466,10 @@ function placeFab(){
 function renderFab(){
   const box = document.getElementById('fab'); if(!box) return;
   const show = S.room && S.room.status!=='CLOSED' && isAdmin()
-            && UI.tab==='play' && UI.screen==='home' && !UI.modal;
+            && UI.screen==='home' && !UI.modal;      // แสดงทุกแท็บของหน้าห้อง
   if(!show){ box.innerHTML=''; fabEl=null; return; }
-  if(fabEl) return;                              // มีอยู่แล้ว ไม่ต้องสร้างใหม่ (กันตำแหน่งเด้ง)
+  if(fabEl && document.getElementById('fabBtn')) return;   // เช็ค DOM จริง กัน cache ค้างแล้วปุ่มหาย
+  fabEl = null;
   box.innerHTML = '<button class="fab" id="fabBtn" title="จัดการรอบ">👑</button>';
   fabEl = document.getElementById('fabBtn');
   placeFab();
@@ -1691,12 +1721,15 @@ function pokerTable(r){
     ? 'เฟสลงกองกลาง · รอ '+r.seats.filter(x=>x.state==='IN'&&x.ante<=0).map(x=>esc(nameOf(S,x.memberId))).slice(0,3).join(' กับ ')
     : r.turn ? 'ตาของ '+esc(nameOf(S,r.turn))+(r.currentBet>0?' · ต้องตามถึง ฿'+fmtS(r.currentBet):'')
     : r.complete ? 'ครบตาแล้ว' : '';
+  const note = actionNotation(r);
+  const noteShort = note ? note.split(' › ').slice(-5).join(' › ') : '';
   return `<div class="ptable">
     <div class="felt"></div>
     <div class="pcenter">
       <span class="plbl">${potLabel}</span>
       <span class="pamt num">฿${fmtS(r.pot)}</span>
       ${sub?`<span class="psub">${sub}</span>`:''}
+      ${noteShort?`<span class="pnote num">${note.length>noteShort.length?'… ':''}${esc(noteShort)}</span>`:''}
     </div>
     ${spots.map(({s,x,y})=>{
       const v = seatVisual(r,s); if(!v) return '';
@@ -1860,15 +1893,6 @@ function betPanel(adminMode){
       `data-act="${locked?'lockedChip':'pickChip'}" data-v="${v}"`);
   }).join('');
   const canCheck = canAct && mineIn===cur;
-  /* ปุ่มลัดแบบโป๊กเกอร์ — ตาม / ขึ้น 2 เท่า / 3 เท่า */
-  const quick = [];
-  if(canAct){
-    if(cur>mineIn) quick.push([cur,'ตาม ฿'+fmtS(cur)]);
-    const base = cur>0?cur:B(chips[0]);
-    [2,3].forEach(m=>{ const v=base*m; if(v>cur && v-mineIn<=w.balance) quick.push([v,'ขึ้น ฿'+fmtS(v)]); });
-    if(w.balance+mineIn>cur && w.balance+mineIn!==(quick[quick.length-1]||[])[0])
-      quick.push([w.balance+mineIn,'ลงหมด ฿'+fmtS(w.balance+mineIn)]);
-  }
 
   /* กล่องบอกสถานะ — ตัวใหญ่ที่สุดบนจอ อ่านปราดเดียวรู้ว่าต้องทำอะไร */
   let box='';
@@ -1898,18 +1922,16 @@ function betPanel(adminMode){
   ${head}
   ${box}
   ${raise}
+  ${s && paidTotal(s)>0 ? `<div class="mypaid num">มือนี้ฉันลงไปแล้ว <b>฿${fmtS(paidTotal(s))}</b>
+      <span class="d">${[s.ante?'ลงกอง ฿'+fmtS(s.ante):'', s.paid?'รอบก่อน ฿'+fmtS(s.paid):'', s.contributed?'รอบนี้ ฿'+fmtS(s.contributed):''].filter(Boolean).join(' · ')}</span></div>`:''}
   ${pokerTable(r)}
-  ${potDetails(r)}
   ${canAct?`
-  <div class="col" style="gap:7px">
-    ${quick.length?`<div class="row" style="gap:6px;flex-wrap:wrap">
-      ${quick.map(([v,l])=>`<button class="pill" style="height:33px;padding:0 12px;background:var(--bg-inset);border:1px solid var(--bs);color:var(--tp);font-weight:700" data-act="pickChip" data-v="${v}">${l}</button>`).join('')}
-    </div>`:''}
+  <div class="col" style="gap:6px">
     <div class="chips">${chipHtml}</div>
     <div class="g2">
-      <button class="btn sec sm" style="width:100%;height:40px" data-act="${canCheck?'check':'lockedCheck'}" ${canCheck?'':'disabled'}>
+      <button class="btn sec sm" style="width:100%;height:34px" data-act="${canCheck?'check':'lockedCheck'}" ${canCheck?'':'disabled'}>
         ${canCheck?'⏭ ผ่าน (ไม่เสียเงิน)':'⏭ ผ่านไม่ได้ 🔒'}</button>
-      <button class="btn sec sm" style="width:100%;height:40px" data-act="modal" data-m="custom">⌨ ใส่ยอดเอง</button>
+      <button class="btn sec sm" style="width:100%;height:34px" data-act="modal" data-m="custom">⌨ ใส่ยอดเอง</button>
     </div>
     ${sel!==null?`<div class="cap num" style="text-align:center">เลือก ฿${fmtS(sel)} → จ่ายเพิ่ม ฿${fmtS(Math.max(0,sel-mineIn))} · เหลือ ฿${fmtBalS(Math.max(0,w.balance-(sel-mineIn)))}</div>`
                :`<div class="cap" style="text-align:center">ตัวเลขบนชิพคือ <b>ยอดรวมของรอบนี้</b> ไม่ใช่ยอดที่จ่ายเพิ่ม</div>`}
@@ -2503,6 +2525,7 @@ function renderModal(){
     </div>
     ${Store.mode==='cloud'?`<button class="btn sec" data-act="syncNow">🔄 ดึงข้อมูลล่าสุดเดี๋ยวนี้</button>`:''}
     <button class="btn ghost" data-act="closeModal">ปิด</button>`, true);
+  else if(m.k==='pickStarter') html = mPickStarter(m);
   else if(m.k==='confirm') html = mConfirm(m);
   else if(m.k==='summary') html = mSummary(m.round);
   else if(m.k==='reveal') html = mReveal(m.street);
@@ -2651,6 +2674,23 @@ function mReveal(street){
     ${sumAuto?`<div class="cap" style="text-align:center">ปิดเองใน ${sumSecs} วินาที</div>`:''}`, true);
 }
 
+/** ผู้ชนะหลายคน → ให้ Admin เลือกว่าใครเริ่มรอบถัดไป */
+function mPickStarter(m){
+  const ws = m.winners;
+  return mWrap(`
+    <b class="h1" style="text-align:center">🏆 ผู้ชนะ ${ws.length} คน</b>
+    <div class="cap" style="text-align:center">เลือกว่า <b>ใครเป็นคนเริ่มลงเงินก่อน</b> ในรอบถัดไป</div>
+    <div class="wpick">
+      ${ws.map(w=>`<button class="wcard" data-act="confirmPayout" data-mid="${w.memberId}">
+        <span class="av2" style="border-color:var(--pot)">${esc(initials(nameOf(S,w.memberId)))}</span>
+        <span class="n">${esc(nameOf(S,w.memberId))}${w.memberId===me.id?' (คุณ)':''}</span>
+        <span class="amt num">+฿${fmtS(w.amount)}</span>
+      </button>`).join('')}
+    </div>
+    <div class="cap" style="text-align:center">แตะที่ชื่อเพื่อยืนยันจ่ายเงินและจบรอบ</div>
+    <button class="btn ghost" data-act="closeModal">ยกเลิก</button>`, true);
+}
+
 function mConfirm(m){
   return mWrap(`<b class="h1" style="text-align:center">${esc(m.title)}</b>
     <div class="cap" style="text-align:center">${esc(m.text||'')}</div>
@@ -2674,6 +2714,7 @@ function mSummary(r){
         : '<b class="h2">ไม่มีผู้ชนะ (กองว่าง)</b>'}
       ${chipStack(r.totalIn,'sm')}
     </div>
+    ${r.startNextId?`<div class="ban g">▶ รอบถัดไปเริ่มลงเงินที่ <b>${esc(nameOf(S,r.startNextId))}${r.startNextId===me.id?' (คุณ)':''}</b></div>`:''}
     ${mySeat?`<div class="card col" style="align-items:center;gap:3px;${iWon?'border-color:var(--brand)':''}">
       <span class="lbl">ผลของคุณรอบนี้</span>
       <span class="money num ${net>0?'in':net<0?'out':''}">${net>0?'+':net<0?'−':''}฿${fmtS(Math.abs(net))}</span>
@@ -2845,11 +2886,22 @@ const A = {
   payAlone(d){ UI.form.winners={[d.mid]:S.curRound.pot}; UI.screen='payout'; render(); },
   async doPayout(){
     const w = UI.form.winners||{};
-    const winners = Object.keys(w).map(k=>({memberId:k,amount:w[k]}));
-    const r = S.curRound;
-    if(await cmd({t:'PAYOUT',winners})){
+    const winners = Object.keys(w).map(k=>({memberId:k,amount:w[k]})).filter(x=>x.amount>0);
+    if(!winners.length) return toast('เลือกผู้ชนะก่อน','r');
+    // ผู้ชนะหลายคน → ถามก่อนว่าใครเริ่มรอบถัดไป
+    if(winners.length>1){ UI.modal={k:'pickStarter',winners}; render(); return; }
+    if(await cmd({t:'PAYOUT',winners,startNextId:winners[0].memberId})){
       UI.form.winners=undefined; UI.screen='home'; UI.tab='control';
     }
+  },
+  /** ยืนยันจ่ายเงินพร้อมระบุคนเริ่มรอบถัดไป (มาจาก mPickStarter) */
+  async confirmPayout(d){
+    const winners = (UI.modal && UI.modal.winners) || [];
+    UI.modal=null;
+    if(await cmd({t:'PAYOUT',winners,startNextId:d.mid})){
+      UI.form.winners=undefined; UI.screen='home'; UI.tab='control';
+      toast('🏆 '+nameOf(S,d.mid)+' จะเป็นคนเริ่มรอบถัดไป','g');
+    } else render();
   },
 
   amtKey(d){ let v=UI.form.amt||'';
