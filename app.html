@@ -301,16 +301,17 @@ const SUPABASE_ANON_KEY = "";
 const SB_TABLE = 'pk_events';
 const SB_CDN   = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
 
-/* สีชิพตามมูลค่า อิงชุดสีคาสิโนมาตรฐาน */
+/* สีชิพตามมูลค่า — จัดให้ชุดพื้นฐาน 20/40/60/80/100 ต่างสีกันชัดทั้ง 5 ใบ */
 const CHIP_FACE = v =>
-  v<=1   ? {bg:'linear-gradient(145deg,#FDFDFD,#D8DEE6)', ink:'#10151C'} :
-  v<=5   ? {bg:'linear-gradient(145deg,#F0575C,#C8272D)', ink:'#fff'} :
-  v<=10  ? {bg:'linear-gradient(145deg,#57ABFF,#1F6FCB)', ink:'#fff'} :
-  v<=25  ? {bg:'linear-gradient(145deg,#2BC98A,#0E7F55)', ink:'#fff'} :
-  v<=50  ? {bg:'linear-gradient(145deg,#FFB061,#E07B18)', ink:'#2A1403'} :
-  v<=100 ? {bg:'linear-gradient(145deg,#3A4250,#14181F)', ink:'#fff'} :
-  v<=500 ? {bg:'linear-gradient(145deg,#9B8CFF,#5B49E0)', ink:'#fff'} :
-           {bg:'linear-gradient(145deg,#FFD264,#E0A21B)', ink:'#241705'};
+  v<=1   ? {bg:'linear-gradient(145deg,#FDFDFD,#D8DEE6)', ink:'#10151C'} :   // ขาว
+  v<=5   ? {bg:'linear-gradient(145deg,#F0575C,#C8272D)', ink:'#fff'} :      // แดง
+  v<=10  ? {bg:'linear-gradient(145deg,#57ABFF,#1F6FCB)', ink:'#fff'} :      // ฟ้า
+  v<=20  ? {bg:'linear-gradient(145deg,#2BC98A,#0E7F55)', ink:'#fff'} :      // เขียว
+  v<=40  ? {bg:'linear-gradient(145deg,#FFB061,#E07B18)', ink:'#2A1403'} :   // ส้ม
+  v<=60  ? {bg:'linear-gradient(145deg,#9B8CFF,#5B49E0)', ink:'#fff'} :      // ม่วง
+  v<=80  ? {bg:'linear-gradient(145deg,#FF6FA5,#D62F72)', ink:'#fff'} :      // ชมพู
+  v<=100 ? {bg:'linear-gradient(145deg,#3A4250,#14181F)', ink:'#fff'} :      // ดำ
+           {bg:'linear-gradient(145deg,#FFD264,#E0A21B)', ink:'#241705'};    // ทอง (500+)
 
 const TIER_COLORS = ['#22C58A','#D4A24C','#3D9CF5','#C77DFF','#FF9F45','#FF6FA5'];
 const TIER_INK    = ['#04140D','#241705','#04121F','#1B0A26','#2A1403','#2B0A18'];
@@ -348,7 +349,7 @@ function pokerChip(v, cls, extra){
 }
 /** แตกยอดเงินเป็นกองชิพซ้อน เพื่อให้เห็นภาพเหมือนโต๊ะจริง */
 function chipStack(satang, size){
-  const DEN=[1000,500,100,50,25,10,5,1];
+  const DEN=[1000,500,100,80,60,40,20,10,5,1];
   let left = Math.round(satang/100), out=[];
   for(const d of DEN){ const n=Math.floor(left/d); if(n>0){ out.push([d,n]); left-=n*d; } }
   if(!out.length) return '<span class="cap">ยังไม่มีเงินในกอง</span>';
@@ -1178,6 +1179,25 @@ const myWallet = () => S.wallets[me.id] || {balance:0,issuedIn:0,returnedOut:0};
 const pendingForAdmin = () => Object.values(S.requests).filter(r=>r.status==='PENDING'&&r.approver==='ADMIN');
 const pendingForMe = () => Object.values(S.requests).filter(r=>r.status==='PENDING'&&r.approver===me.id);
 const playersList = () => Object.values(S.members).filter(m=>m.status==='PLAYING').sort((a,b)=>a.seatNo-b.seatNo);
+/**
+ * สรุปหนี้สิน "คงค้างตอนนี้" ของคนหนึ่งคน
+ * นับเฉพาะที่ยังค้างอยู่จริง — คืนครบแล้วจะหายไปเลย ไม่เก็บเป็นประวัติ
+ *   owes = ยืมคนอื่นมา (ยังติดเขาอยู่)  ·  lent = ให้คนอื่นยืมไป (รอรับคืน)
+ */
+function debtOf(mid){
+  const owes={}, lent={};
+  Object.values(S.debts).forEach(d=>{
+    if(d.status!=='OPEN' || d.outstanding<=0) return;      // คืนหมดแล้ว = ไม่นับ
+    if(d.debtor===mid)   owes[d.creditor] = (owes[d.creditor]||0) + d.outstanding;
+    if(d.creditor===mid) lent[d.debtor]   = (lent[d.debtor]||0)   + d.outstanding;
+  });
+  const arr = o => Object.keys(o).map(k=>({id:k,amount:o[k]})).sort((a,b)=>b.amount-a.amount);
+  const o=arr(owes), l=arr(lent);
+  const sum = a => a.reduce((x,y)=>x+y.amount,0);
+  return {owes:o, owesTotal:sum(o), lent:l, lentTotal:sum(l), net:sum(l)-sum(o)};
+}
+const anyDebts = () => Object.values(S.debts).some(d=>d.status==='OPEN'&&d.outstanding>0);
+
 const profitOf = mid => {
   const w = S.wallets[mid]||{balance:0,issuedIn:0,returnedOut:0};
   const r = S.curRound && S.curRound.status!=='SETTLED' && S.curRound.status!=='VOIDED' ? S.curRound : null;
@@ -1318,7 +1338,7 @@ function vCreate(){
     <div class="card col"><div class="lbl">ลงเงินกองกลาง ต่อคน ต่อรอบ (ante)</div>
       <input id="f_ante" inputmode="decimal" value="${f.ante??10}">
       <div class="row" style="gap:6px;flex-wrap:wrap">
-        ${[0,5,10,20,50].map(v=>`<button class="btn sec sm" data-act="setAnte" data-v="${v}">${v===0?'ไม่มี':'฿'+v}</button>`).join('')}
+        ${[0,20,40,60,80].map(v=>`<button class="btn sec sm" data-act="setAnte" data-v="${v}">${v===0?'ไม่มี':'฿'+v}</button>`).join('')}
       </div>
       <div class="cap">ทุกคนต้องลงเงินกองกลางก่อน แล้วระบบจะเริ่มเดิมพันที่ผู้ชนะรอบก่อน (รอบแรกเริ่มที่คนตำแหน่งที่ 1) · ใส่ 0 = ข้ามขั้นตอนนี้</div>
     </div>
@@ -1921,6 +1941,75 @@ function txRow(t){
     <span class="money-s num ${isMine?(inb?'in':'out'):'mut'}">${isMine?(inb?'+':'−'):''}฿${fmtS(t.amount)}</span></div>`;
 }
 
+/** รายการย่อย "ยืมใครบ้าง / ให้ใครยืมบ้าง" */
+function debtLines(s){
+  const line = (x,dir) => `<div class="row" style="gap:8px;padding:3px 0">
+      <span class="av2" style="width:26px;height:26px;font-size:10px">${esc(initials(nameOf(S,x.id)))}</span>
+      <span class="cap" style="color:var(--tp)">${esc(nameOf(S,x.id))}</span>
+      <span class="sp"></span>
+      <span class="money-s num ${dir==='owe'?'out':'in'}">฿${fmtS(x.amount)}</span></div>`;
+  return `
+    ${s.owes.length?`<div class="col" style="gap:2px">
+      <span class="lbl out">🔴 ยืมมา — ยังต้องคืน ฿${fmtS(s.owesTotal)}</span>
+      ${s.owes.map(x=>line(x,'owe')).join('')}</div>`:''}
+    ${s.lent.length?`<div class="col" style="gap:2px">
+      <span class="lbl in">🟢 ให้ยืมไป — รอรับคืน ฿${fmtS(s.lentTotal)}</span>
+      ${s.lent.map(x=>line(x,'lend')).join('')}</div>`:''}`;
+}
+
+/** การ์ดสรุปหนี้ — Admin เห็นทุกคน · ผู้เล่นเห็นเฉพาะของตัวเอง */
+function vDebtPanel(){
+  if(!S.room.settings.loans) return '';
+
+  /* ---------- ผู้เล่นธรรมดา: เฉพาะของตัวเอง ---------- */
+  if(!isAdmin()){
+    const s = debtOf(me.id);
+    return `<div class="card col">
+      <b class="h2">🤝 หนี้สินคงค้างของฉัน</b>
+      <div class="g2">
+        <div class="card col" style="gap:3px;background:var(--bg-inset)">
+          <span class="cap">ยืมมา (ต้องคืน)</span>
+          <span class="money-l num ${s.owesTotal?'out':'mut'}">฿${fmtS(s.owesTotal)}</span></div>
+        <div class="card col" style="gap:3px;background:var(--bg-inset)">
+          <span class="cap">ให้ยืมไป (รอรับ)</span>
+          <span class="money-l num ${s.lentTotal?'in':'mut'}">฿${fmtS(s.lentTotal)}</span></div>
+      </div>
+      ${(s.owesTotal||s.lentTotal)
+        ? debtLines(s) + `<div class="row" style="border-top:1px solid var(--border);padding-top:7px">
+            <span class="lbl">สุทธิ</span><span class="sp"></span>
+            <b class="num ${s.net>0?'in':s.net<0?'out':'mut'}">${s.net>0?'+':''}${fmtS(s.net)}</b></div>`
+        : `<div class="empty" style="padding:14px"><span class="ic">✅</span>
+             <span class="cap">ไม่มีหนี้สินค้างอยู่</span></div>`}
+    </div>`;
+  }
+
+  /* ---------- Admin: ทุกคนในวง ---------- */
+  const list = playersList().map(p=>({p, s:debtOf(p.id)})).filter(x=>x.s.owesTotal||x.s.lentTotal);
+  const open = UI.form.debtOpen;
+  if(!list.length) return `<div class="card col">
+    <b class="h2">🤝 หนี้สินระหว่างผู้เล่น</b>
+    <div class="empty" style="padding:14px"><span class="ic">✅</span>
+      <span class="cap">ตอนนี้ไม่มีใครติดหนี้กันอยู่</span></div></div>`;
+
+  const totalOut = list.reduce((a,x)=>a+x.s.owesTotal,0);
+  return `<div class="card col">
+    <div class="row"><b class="h2">🤝 หนี้สินระหว่างผู้เล่น</b><span class="sp"></span>
+      <span class="pill">ค้างรวม ฿${fmtS(totalOut)}</span></div>
+    <div class="cap">แตะที่ชื่อเพื่อดูว่ายืมใคร / ให้ใครยืม · แสดงเฉพาะยอดที่ยังค้าง คืนครบแล้วจะหายไป</div>
+    <table><thead><tr><th>ผู้เล่น</th><th>ยืมมา</th><th>ให้ยืม</th><th>สุทธิ</th></tr></thead><tbody>
+      ${list.map(({p,s})=>`
+        <tr data-act="debtToggle" data-mid="${p.id}" style="cursor:pointer">
+          <td>${p.role==='ADMIN'?'👑 ':''}${esc(p.name)} <span class="mut">${open===p.id?'▾':'▸'}</span></td>
+          <td class="num ${s.owesTotal?'out':'mut'}">${s.owesTotal?fmtS(s.owesTotal):'—'}</td>
+          <td class="num ${s.lentTotal?'in':'mut'}">${s.lentTotal?fmtS(s.lentTotal):'—'}</td>
+          <td class="num" style="color:${s.net>0?'var(--in)':s.net<0?'var(--out)':'var(--tm)'}">${s.net>0?'+':''}${fmtS(s.net)}</td>
+        </tr>
+        ${open===p.id?`<tr><td colspan="4" style="background:var(--bg-inset)">
+          <div class="col" style="gap:7px;padding:4px 2px">${debtLines(s)}</div></td></tr>`:''}`).join('')}
+    </tbody></table>
+  </div>`;
+}
+
 function vHistory(){
   const f = UI.form.hfilter||'all';
   let txs = S.txs.slice().reverse();
@@ -1928,6 +2017,7 @@ function vHistory(){
   if(f==='pot') txs = txs.filter(t=>t.type==='BET'||t.type==='PAYOUT'||t.type==='UNBET');
   if(f==='bank') txs = txs.filter(t=>t.from==='BANK'||t.to==='BANK');
   return `
+  ${vDebtPanel()}
   <div class="row" style="gap:6px;flex-wrap:wrap">
     ${[['all','ทั้งหมด'],['mine','ของฉัน'],['pot','กองกลาง'],['bank','เบิกเงิน']].map(([k,l])=>
       `<button class="pill" data-act="hfilter" data-f="${k}" style="${f===k?'background:var(--brand);color:#04140D':''}">${l}</button>`).join('')}
@@ -2331,7 +2421,7 @@ const A = {
   openPend(){ UI.screen='approvals'; render(); },
 
   goCreate(){ const n=$('#myname').value.trim(); if(!n) return toast('ใส่ชื่อก่อนนะ','r');
-    me.name=n; Me.save(me); UI.screen='create'; UI.form={seats:5,start:1000,ante:10,multiStreet:true,chips:'5,10,20,30,50,100',loans:true,strict:true,autoClose:true,autoGrant:true}; render(); },
+    me.name=n; Me.save(me); UI.screen='create'; UI.form={seats:5,start:1000,ante:40,multiStreet:true,chips:'20,40,60,80,100',loans:true,strict:true,autoClose:true,autoGrant:true}; render(); },
   goJoin(){ const n=$('#myname').value.trim(); if(!n) return toast('ใส่ชื่อก่อนนะ','r');
     me.name=n; Me.save(me); UI.screen='join'; render(); },
   seats(d){ UI.form.seats = Math.max(1,Math.min(20,(UI.form.seats||5)+Number(d.d))); render(); },
@@ -2346,7 +2436,7 @@ const A = {
     const ante = B(parseAmt($('#f_ante').value)||0);
     try{ await Store.open(code, Store.mode); }catch(e){ return toast(e.message,'r'); }
     await Store.append({t:'ROOM_CREATED',code,name,name2:me.name,maxSeats:UI.form.seats||5,
-      settings:{startAmount:start, anteAmount:ante, chips:chips.length?chips:[5,10,20,30,50,100],
+      settings:{startAmount:start, anteAmount:ante, chips:chips.length?chips:[20,40,60,80,100],
         loans:$('#f_loans').checked, strict:$('#f_strict').checked,
         autoClose:$('#f_autoclose').checked, multiStreet:$('#f_multi').checked, autoGrant:$('#f_auto').checked}});
     if(start>0) await Store.append({t:'ISSUE',mid:me.id,amount:start,kind:'ISSUE_INITIAL',note:'เงินเริ่มต้น'});
@@ -2500,6 +2590,7 @@ const A = {
   saveAnte(){ const v=B(parseAmt($('#s_ante').value)||0); cmd({t:'SETTINGS_SET',settings:{anteAmount:v}}); toast('บันทึกแล้ว มีผลรอบถัดไป','g'); },
   copyCode(){ navigator.clipboard?.writeText(S.room.code); toast('คัดลอกรหัสห้องแล้ว','g'); },
   hfilter(d){ UI.form.hfilter=d.f; render(); },
+  debtToggle(d){ UI.form.debtOpen = (UI.form.debtOpen===d.mid) ? null : d.mid; render(); },
   async returnAll(){
     for(const [mid,w] of Object.entries(S.wallets)){
       if(w.balance>0) await Store.append({t:'RETURN_TO_BANK',mid,amount:w.balance,note:'เคลียร์ยอดปิดห้อง',by:me.id});
