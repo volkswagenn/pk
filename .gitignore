@@ -15,3 +15,6 @@ node_modules/
 *~
 .vscode/
 .idea/
+
+# ผลลัพธ์จาก build.js (สร้างใหม่ทุกครั้งตอน deploy)
+dist/

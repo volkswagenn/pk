@@ -26,24 +26,43 @@
 
 ---
 
-## ขั้นที่ 2 · ใส่ค่าลงในแอป
+## ขั้นที่ 2 · ใส่คีย์ใน Vercel (ไม่ต้องแก้ไฟล์)
 
-เปิด [`app.html`](app.html) ด้วย Notepad หรือ VS Code หาบรรทัดที่ **ขึ้นต้นไฟล์ ~บรรทัด 190**
+**วิธีที่แนะนำ** — คีย์อยู่แค่ใน Vercel ไม่เข้า git ทำให้ repo เปิดสาธารณะได้อย่างสบายใจ
 
-```js
-const SUPABASE_URL      = "";   // เช่น "https://xxxxxxxx.supabase.co"
-const SUPABASE_ANON_KEY = "";   // anon public key
+1. เข้า Vercel → เลือกโปรเจกต์ → **Settings** → **Environment Variables**
+2. เพิ่ม 2 ตัวนี้ (เลือก environment ให้ครบทั้ง **Production / Preview / Development**)
+
+| Key | Value |
+|---|---|
+| `SUPABASE_URL` | `https://xxxxxxxx.supabase.co` (ไม่ต้องมี `/rest/v1/` ต่อท้าย) |
+| `SUPABASE_ANON_KEY` | คีย์ `anon` `public` ที่คัดลอกมาจากขั้นที่ 1 |
+
+3. กด **Save**
+4. ไปแท็บ **Deployments** → กด `⋯` ที่ deployment ล่าสุด → **Redeploy**
+
+ตอน build ไฟล์ [`build.js`](build.js) จะอ่านค่าทั้งสองมาใส่ใน `dist/index.html` ให้เอง
+พร้อมตรวจให้ด้วยว่าเป็นคีย์ role `anon` จริง — **ถ้าเผลอใส่ `service_role` มันจะหยุด build ทันที**
+
+ดู build log ได้ที่หน้า Deployment จะเห็นแบบนี้
+
+```
+SUPABASE_URL       = https://xxxxxxxx.supabase.co
+SUPABASE_ANON_KEY  = eyJhbG…QaDA  (208 ตัวอักษร)
+ตรวจคีย์            = role "anon" ✅
+✅ สร้าง dist/index.html เรียบร้อย (116 KB)
 ```
 
-เติมค่าจากขั้นที่ 1 ลงไประหว่างเครื่องหมายคำพูด แล้วบันทึก
+> **หมายเหตุตามตรง:** วิธีนี้ทำให้คีย์ไม่อยู่ใน git ก็จริง แต่**ในหน้าเว็บที่ deploy แล้วยังเห็นคีย์ได้อยู่**
+> (กด View Source ก็เจอ) — เลี่ยงไม่ได้ เพราะเบราว์เซอร์ต้องใช้คีย์นั้นต่อ Supabase
+> ตัว anon key ออกแบบมาให้เป็นแบบนั้นอยู่แล้ว ด่านป้องกันจริงคือ RLS policy ไม่ใช่การซ่อนคีย์
 
-```js
-const SUPABASE_URL      = "https://abcdefghijkl.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6...";
-```
+### ทางเลือกอื่น
 
-> ใส่ค่าตรงนี้แล้ว **ทุกคนที่เปิดเว็บจะอยู่โหมดข้ามเครื่องทันที** ไม่ต้องตั้งค่าอะไรอีก
-> ถ้าไม่อยากแก้ไฟล์ ข้ามขั้นนี้ได้ — แล้วให้แต่ละคนกรอกเองที่ปุ่ม "ตั้งค่าการเชื่อมต่อข้ามเครื่อง" ในหน้าแรก
+| วิธี | เหมาะกับ |
+|---|---|
+| ไม่ตั้งอะไรเลย | แต่ละคนกดปุ่ม "ตั้งค่าการเชื่อมต่อข้ามเครื่อง" ในหน้าแรกแล้วกรอกเอง (เก็บในเครื่องใครเครื่องมัน) |
+| แก้ `app.html` บรรทัด 180–182 ตรงๆ | เร็วสุด แต่คีย์จะเข้า git → ควรตั้ง repo เป็น **Private** |
 
 ---
 
@@ -94,9 +113,13 @@ npx vercel --prod
 
 | ไฟล์ | ทำอะไร |
 |---|---|
-| [`vercel.json`](vercel.json) | ตั้งให้เปิดหน้าแรก `/` แล้วเจอ `app.html` เลย + ปิด cache กันเห็นเวอร์ชันเก่า |
+| [`build.js`](build.js) | ตอน deploy อ่าน env var มาใส่ใน `app.html` → เขียนออกเป็น `dist/index.html` + ตรวจว่าคีย์เป็น role `anon` |
+| [`vercel.json`](vercel.json) | สั่งให้ Vercel รัน `node build.js` แล้วเสิร์ฟโฟลเดอร์ `dist` + ปิด cache กันเห็นเวอร์ชันเก่า |
 | `.vercelignore` | กันไม่ให้เอกสารออกแบบ (`*.md`, `*.sql`, ม็อกอัพ) ขึ้นเว็บสาธารณะ |
 | [`supabase-schema.sql`](supabase-schema.sql) | สคริปต์สร้างตาราง + สิทธิ์ + เปิด Realtime |
+
+> `dist/` ถูกใส่ใน `.gitignore` แล้ว — สร้างใหม่ทุกครั้งตอน deploy ไม่ต้อง commit
+> ทดสอบ build ในเครื่องได้ด้วย `node build.js` แล้วเปิด `dist/index.html`
 
 ---
 
