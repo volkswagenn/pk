@@ -156,13 +156,20 @@ input:focus,select:focus{border-color:var(--brand)}
   font-size:19px;display:flex;align-items:center;justify-content:center}
 .ic.on{border-color:var(--brand4);box-shadow:0 0 0 2px rgba(34,197,138,.3);background:var(--brand-bg)}
 .ic:active{transform:scale(.92)}
+/* ลากจัดลำดับผู้เล่น */
+.grip{width:26px;height:38px;display:flex;align-items:center;justify-content:center;flex:none;
+  color:var(--tm);font-size:15px;cursor:grab;touch-action:none;user-select:none;border-radius:8px}
+.grip:active{cursor:grabbing}
+.drow.dragging{opacity:.92;box-shadow:0 8px 22px rgba(0,0,0,.5);border-color:var(--brand4)!important;
+  position:relative;z-index:30;transition:none}
+.drow.dropgap{border-top:2px solid var(--brand4)}
 .pseat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;width:56px}
 .pseat .av{width:33px;height:33px;border-radius:99px;background:var(--bg-surface);border:2.5px solid var(--border);
   display:flex;align-items:center;justify-content:center;font:700 11.5px/1 var(--f);color:var(--tp);
   box-shadow:0 2px 8px rgba(0,0,0,.4)}
 .pseat .nm{font:500 9.5px/1.1 var(--f);color:var(--ts);max-width:58px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   text-shadow:0 1px 3px rgba(0,0,0,.5)}
-.pseat .bg{font:800 12.5px/1 var(--f);padding:4px 8px;border-radius:99px;border:1px solid var(--border);color:var(--tm);
+.pseat .bg{font:800 15px/1 var(--f);padding:5px 10px;border-radius:99px;border:1px solid var(--border);color:var(--tm);
   background:var(--bg-surface);white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.35)}
 .pseat .pos{position:absolute;top:-4px;left:1px;z-index:2;width:15px;height:15px;border-radius:99px;
   background:var(--bg-inset);border:1px solid var(--border);font:700 8.5px/13px var(--f);text-align:center;color:var(--tm)}
@@ -514,7 +521,7 @@ Me.save(me);
 function blankState(){
   return {
     room:null, members:{}, wallets:{}, bank:{issued:0,returned:0},
-    rounds:[], curRound:null, lastWinnerId:null, requests:{}, debts:{}, txs:[], feed:[],
+    rounds:[], curRound:null, lastWinnerId:null, chart:[], requests:{}, debts:{}, txs:[], feed:[],
     seq:0, broken:null
   };
 }
@@ -1060,6 +1067,15 @@ function apply(st, ev){
         // Admin เลือกได้ว่าผู้ชนะคนไหนเริ่มรอบถัดไป · ไม่ได้เลือก = คนที่ได้เงินมากสุด
         st.lastWinnerId = ev.startNextId || r.winners.slice().sort((a,b)=>b.amount-a.amount)[0].memberId;
         r.startNextId = st.lastWinnerId;
+      }
+      // 📈 บันทึกกำไร/ขาดทุนสะสมของทุกคน ณ จุดจบรอบ — ใช้วาดกราฟเส้น
+      {
+        const snap = {};
+        Object.keys(st.wallets).forEach(mid=>{
+          const w = st.wallets[mid];
+          snap[mid] = w.balance - (w.issuedIn - w.returnedOut);
+        });
+        st.chart.push({round:r.index, profits:snap});
       }
       const names = r.winners.map(w=>nameOf(st,w.memberId)+' ฿'+fmtS(w.amount)).join(' · ');
       feed(st,ev,'🏆','จบรอบที่ '+r.index+(names?' — '+names:' (ไม่มีเงินในกอง)'),'g');
@@ -2047,6 +2063,46 @@ function roundControls(r, big){
     </div>`;
 }
 
+/** กราฟเส้น: กำไร/ขาดทุนสะสม (แกน y) ต่อรอบ (แกน x) รายคน */
+function profitChart(){
+  const data = S.chart||[];
+  if(data.length < 1) return '';
+  const list = playersList();
+  if(!list.length) return '';
+  // จุดเริ่ม = รอบ 0 ทุกคน 0 เพื่อให้เส้นออกจากจุดเดียวกัน
+  const pts = [{round:0, profits:Object.fromEntries(list.map(p=>[p.id,0]))}, ...data];
+  const W=340, H=150, padL=42, padR=8, padT=10, padB=20;
+  const xs = pts.map(d=>d.round);
+  const allV = pts.flatMap(d=>list.map(p=>d.profits[p.id]||0));
+  let lo = Math.min(0,...allV), hi = Math.max(0,...allV);
+  if(hi===lo){ hi+=100; lo-=100; }
+  const X = r => padL + (r - xs[0])/(xs[xs.length-1]-xs[0]||1)*(W-padL-padR);
+  const Y = v => padT + (hi - v)/(hi-lo)*(H-padT-padB);
+  // เส้นกริดแนวนอน 3 เส้น + เส้นศูนย์
+  const gridV = [hi, (hi+lo)/2, lo];
+  const lines = list.map(p=>{
+    const d = pts.map((pt,i)=>(i?'L':'M')+X(pt.round).toFixed(1)+','+Y(pt.profits[p.id]||0).toFixed(1)).join(' ');
+    const last = pts[pts.length-1].profits[p.id]||0;
+    return {p, d, last};
+  });
+  return `<div class="card col" style="gap:6px">
+    <div class="row"><b class="h2">📈 เส้นได้เสียสะสม</b><span class="sp"></span><span class="cap">แกนตั้ง ฿ · แกนนอน รอบ</span></div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
+      ${gridV.map(v=>`<line x1="${padL}" y1="${Y(v)}" x2="${W-padR}" y2="${Y(v)}" stroke="var(--border)" stroke-width="1" ${v===0?'':'stroke-dasharray="3 3"'}/>
+        <text x="${padL-4}" y="${Y(v)+3}" text-anchor="end" font-size="8.5" fill="var(--tm)" font-family="var(--f)">${fmtS(v)}</text>`).join('')}
+      <line x1="${padL}" y1="${Y(0)}" x2="${W-padR}" y2="${Y(0)}" stroke="var(--bs)" stroke-width="1.4"/>
+      ${xs.map(r=>`<text x="${X(r)}" y="${H-6}" text-anchor="middle" font-size="8.5" fill="var(--tm)" font-family="var(--f)">${r===0?'เริ่ม':'รอบ'+r}</text>`).join('')}
+      ${lines.map(({p,d})=>`<path d="${d}" fill="none" stroke="${p.color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`).join('')}
+      ${lines.map(({p})=>{ const lp=pts[pts.length-1]; return `<circle cx="${X(lp.round)}" cy="${Y(lp.profits[p.id]||0)}" r="3" fill="${p.color}"/>`; }).join('')}
+    </svg>
+    <div class="row" style="gap:9px;flex-wrap:wrap">
+      ${lines.map(({p,last})=>`<span style="display:flex;align-items:center;gap:4px;font:600 10.5px/1 var(--f);color:var(--ts)">
+        <i style="width:10px;height:3px;border-radius:2px;background:${p.color}"></i>${esc(p.name)}
+        <b class="num" style="color:${last>0?'var(--in)':last<0?'var(--out)':'var(--tm)'}">${last>0?'+':''}${fmtS(last)}</b></span>`).join('')}
+    </div>
+  </div>`;
+}
+
 function vAdminControl(){
   const r = S.curRound, ni = netIssued(S), inSys = sumWallets(S)+potNow(S);
   const pend = pendingForAdmin();
@@ -2092,6 +2148,7 @@ function vAdminControl(){
         </div>`; }).join('')}
     </div>
   </div>
+  ${profitChart()}
   ${ctrlOpts}
   <div class="card col">
     <div class="row"><b class="h2">ผู้เล่น (${list.length}/${S.room.maxSeats})</b><span class="sp"></span>
@@ -2362,11 +2419,12 @@ function vPlayers(){
     <div class="cap">ลดที่นั่งได้เมื่อไม่มีคนนั่งอยู่</div></div>`:''}
   <div class="card col">
     <div class="row"><b class="h2">ลำดับการลงเงิน (${list.length})</b><span class="sp"></span>
-      ${isAdmin()?'<span class="cap">▲▼ ย้ายตำแหน่ง</span>':''}</div>
+      ${isAdmin()?'<span class="cap">☰ กดค้างแล้วลากเพื่อสลับ</span>':''}</div>
     ${isAdmin()?'<div class="cap">ลำดับนี้คือคิวการลงเงิน — คนตำแหน่ง 1 ลงก่อน แล้วไล่ลงไป</div>':''}
     ${list.map((p,i)=>{ const w=S.wallets[p.id]||{balance:0,issuedIn:0}; const v=profitOf(p.id);
       const isTurn = S.curRound && S.curRound.status==='OPEN' && S.curRound.turn===p.id;
-      return `<div class="lrow" style="${isTurn?'border-color:var(--pending)':''}">
+      return `<div class="lrow drow" data-mid="${p.id}" style="${isTurn?'border-color:var(--pending)':''}">
+        ${isAdmin()?`<span class="grip" data-grip="${p.id}">☰</span>`:''}
         <span class="posbig">${i+1}</span>
         <span class="av2" style="border-color:${p.color}">${faceOf(p,false)}</span>
         <div class="col" style="gap:2px"><b style="font:600 13px/1 var(--f)">${esc(p.name)}${p.id===me.id?' (คุณ)':''}${isTurn?' <span class="pill pend">ตานี้</span>':''}</b>
@@ -2656,9 +2714,27 @@ function mManage(mid){
   const mode = UI.form.mmode||'add';
   const amt = B(parseAmt(v)||0);
   const ni = netIssued(S);
+  /* สรุปการเงินของคนนี้ทั้งเกม */
+  const wf = S.wallets[mid]||{balance:0,issuedIn:0,returnedOut:0,totalBet:0,totalWon:0};
+  const pl = profitOf(mid);
+  const db = debtOf(mid);
+  const myTx = S.txs.filter(t=>t.from==='W:'+mid||t.to==='W:'+mid);
   return mWrap(`
     <b class="h1" style="text-align:center">👑 จัดการเงิน — ${esc(m.name)}</b>
     <div class="cap" style="text-align:center">กระเป๋าตอนนี้ ฿${fmt(w.balance)}</div>
+    <div class="card col" style="gap:5px">
+      <b class="lbl">📋 สรุปการเงินทั้งเกม</b>
+      <div class="row"><span class="cap">เบิกจาก BANK</span><span class="sp"></span><span class="num">฿${fmtS(wf.issuedIn)}</span></div>
+      ${wf.returnedOut?`<div class="row"><span class="cap">คืนเข้า BANK</span><span class="sp"></span><span class="num">฿${fmtS(wf.returnedOut)}</span></div>`:''}
+      <div class="row"><span class="cap">ลงกองไปทั้งหมด</span><span class="sp"></span><span class="num out">−฿${fmtS(wf.totalBet)}</span></div>
+      <div class="row"><span class="cap">ชนะกองมาทั้งหมด</span><span class="sp"></span><span class="num in">+฿${fmtS(wf.totalWon)}</span></div>
+      ${db.owesTotal?`<div class="row"><span class="cap">ติดหนี้คนอื่น</span><span class="sp"></span><span class="num out">฿${fmtS(db.owesTotal)}</span></div>`:''}
+      ${db.lentTotal?`<div class="row"><span class="cap">รอรับหนี้คืน</span><span class="sp"></span><span class="num in">฿${fmtS(db.lentTotal)}</span></div>`:''}
+      <div class="row" style="border-top:1px solid var(--border);padding-top:6px">
+        <b class="lbl">ได้ / เสียสุทธิ</b><span class="sp"></span>
+        <b class="money-s num" style="color:${pl>0?'var(--in)':pl<0?'var(--out)':'var(--tm)'}">${pl>0?'+':''}${fmtS(pl)}</b></div>
+      <div class="cap">ธุรกรรมทั้งหมด ${myTx.length} รายการ — ดูละเอียดที่หน้าประวัติ</div>
+    </div>
     <div class="tabs"><button class="${mode==='add'?'on':''}" data-act="mmode" data-v="add">＋ เติมเงิน</button>
       <button class="${mode==='ret'?'on':''}" data-act="mmode" data-v="ret">− คืน BANK</button></div>
     <div class="money num" style="text-align:center;margin:4px 0;color:${v?'var(--tp)':'var(--tm)'}">฿${v||'0'}</div>
@@ -3007,6 +3083,55 @@ const A = {
 
 };
 function getFbCfg(){ return sbCfg(); }
+
+/* ============================================================
+   ลากจัดลำดับผู้เล่น (มือถือ+เมาส์) — จับที่ปุ่ม ☰ ลากขึ้นลง ปล่อยเพื่อแทรก
+   ============================================================ */
+const Drag = {active:null, row:null, startY:0, offY:0, order:[], target:-1};
+document.addEventListener('pointerdown', e=>{
+  const g = e.target.closest('[data-grip]');
+  if(!g || !isAdmin()) return;
+  e.preventDefault();
+  const row = g.closest('.drow');
+  Drag.active = g.dataset.grip; Drag.row = row; Drag.startY = e.clientY;
+  Drag.order = [...document.querySelectorAll('.drow')].map(el=>el.dataset.mid);
+  Drag.target = Drag.order.indexOf(Drag.active);
+  row.classList.add('dragging');
+  g.setPointerCapture(e.pointerId);
+}, {passive:false});
+document.addEventListener('pointermove', e=>{
+  if(!Drag.active || !Drag.row) return;
+  const dy = e.clientY - Drag.startY;
+  Drag.row.style.transform = 'translateY('+dy+'px)';
+  // หา index เป้าหมายจากตำแหน่งกลางของแถวที่ลากอยู่
+  const rows = [...document.querySelectorAll('.drow')];
+  const midY = Drag.row.getBoundingClientRect().top + Drag.row.offsetHeight/2;
+  let t = rows.length-1;
+  for(let i=0;i<rows.length;i++){
+    if(rows[i]===Drag.row) continue;
+    const r = rows[i].getBoundingClientRect();
+    if(midY < r.top + r.height/2){ t = Drag.order.indexOf(rows[i].dataset.mid); if(Drag.order.indexOf(Drag.active)<t) t--; break; }
+  }
+  if(midY >= rows[rows.length-1].getBoundingClientRect().top + rows[rows.length-1].offsetHeight/2) t = rows.length-1;
+  Drag.target = t;
+  rows.forEach((el,i)=>el.classList.toggle('dropgap', el!==Drag.row && Drag.order.indexOf(el.dataset.mid)===((t>=Drag.order.indexOf(Drag.active))?t+1:t)));
+});
+document.addEventListener('pointerup', e=>{
+  if(!Drag.active) return;
+  const from = Drag.order.indexOf(Drag.active), to = Drag.target;
+  document.querySelectorAll('.drow').forEach(el=>{ el.classList.remove('dragging','dropgap'); el.style.transform=''; });
+  const mid = Drag.active; Drag.active=null; Drag.row=null;
+  if(to>=0 && to!==from){
+    const list = Drag.order.slice();
+    list.splice(from,1); list.splice(to,0,mid);
+    cmd({t:'SEATS_REORDER',order:list});
+  } else render();
+});
+document.addEventListener('pointercancel', ()=>{
+  if(!Drag.active) return;
+  document.querySelectorAll('.drow').forEach(el=>{ el.classList.remove('dragging','dropgap'); el.style.transform=''; });
+  Drag.active=null; Drag.row=null; render();
+});
 
 /* ---------- event delegation ---------- */
 document.addEventListener('click', e=>{
