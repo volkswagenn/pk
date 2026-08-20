@@ -493,6 +493,56 @@ function chipStack(satang, size){
     <span class="cnt">${n>5?'×'+n:'×'+n}</span></div>`).join('')}</div>`;
 }
 
+/* ============================================================
+   PromptPay QR — สร้าง payload มาตรฐาน EMVCo + CRC16 แล้ววาดเป็น QR
+   ============================================================ */
+function ppCrc16(s){
+  let crc = 0xFFFF;
+  for(let i=0;i<s.length;i++){
+    crc ^= s.charCodeAt(i) << 8;
+    for(let j=0;j<8;j++) crc = (crc & 0x8000) ? ((crc<<1) ^ 0x1021) & 0xFFFF : (crc<<1) & 0xFFFF;
+  }
+  return crc.toString(16).toUpperCase().padStart(4,'0');
+}
+const ppTag = (id,val) => id + String(val.length).padStart(2,'0') + val;
+/** pp = เบอร์ 10 หลัก หรือบัตร ปชช 13 หลัก · amountSatang = ยอด (0 = ไม่ระบุ) */
+function promptpayPayload(pp, amountSatang){
+  const target = pp.length===10
+    ? ppTag('01','0066'+pp.slice(1))                    // เบอร์มือถือ → 0066 + ตัดศูนย์นำ
+    : ppTag('02',pp);                                   // เลขบัตรประชาชน
+  const merchant = ppTag('29', ppTag('00','A000000677010111') + target);
+  let body = ppTag('00','01') + ppTag('01', amountSatang>0?'12':'11') + merchant
+           + ppTag('58','TH') + ppTag('53','764');
+  if(amountSatang>0) body += ppTag('54', (amountSatang/100).toFixed(2));
+  body += '6304';
+  return body + ppCrc16(body);
+}
+let _qrLibLoading = null;
+async function ensureQrLib(){
+  if(window.qrcode) return;
+  if(!_qrLibLoading) _qrLibLoading = loadScript('https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js');
+  await _qrLibLoading;
+}
+/** วาด QR ลง canvas พร้อมกรอบ+ข้อความ แล้วคืน canvas (ไว้โชว์และบันทึกรูป) */
+function drawPpCanvas(payload, title, amountSatang){
+  const qr = window.qrcode(0,'M'); qr.addData(payload); qr.make();
+  const n = qr.getModuleCount(), cell=8, pad=28, headH=64;
+  const size = n*cell + pad*2;
+  const cv = document.createElement('canvas');
+  cv.width = size; cv.height = size + headH;
+  const g = cv.getContext('2d');
+  g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
+  g.fillStyle='#113566'; g.fillRect(0,0,cv.width,headH);           // หัวน้ำเงินแบบพร้อมเพย์
+  g.fillStyle='#fff'; g.font='700 20px system-ui'; g.textAlign='center';
+  g.fillText('PromptPay · '+title, cv.width/2, 27);
+  g.font='800 24px system-ui';
+  g.fillText(amountSatang>0 ? '฿ '+fmt(amountSatang) : 'ไม่ระบุยอด', cv.width/2, 54);
+  g.fillStyle='#000';
+  for(let r=0;r<n;r++) for(let c=0;c<n;c++)
+    if(qr.isDark(r,c)) g.fillRect(pad+c*cell, headH+pad+r*cell-14, cell, cell);
+  return cv;
+}
+
 /* ---------- เสียงและการสั่น ---------- */
 const Sfx = {
   ctx:null, on:true,
@@ -583,7 +633,7 @@ Me.save(me);
 function blankState(){
   return {
     room:null, members:{}, wallets:{}, bank:{issued:0,returned:0},
-    rounds:[], curRound:null, lastWinnerId:null, chart:[], requests:{}, debts:{}, txs:[], feed:[],
+    rounds:[], curRound:null, lastWinnerId:null, chart:[], clearedOutside:[], requests:{}, debts:{}, txs:[], feed:[], memberLog:[],
     seq:0, broken:null
   };
 }
@@ -599,6 +649,9 @@ function pushTx(st,ev,type,from,to,amount,note){
   st.seq++;
   st.txs.push({seq:st.seq,id:ev.id,type,from,to,amount,note:note||'',by:ev.by,at:ev.at,roundId:ev.roundId||null});
 }
+/** บันทึกประวัติเข้า-ออกวง (ถาวรใน state ใช้ทั้งหน้าจอและ CSV) */
+function mlog(st,ev,mid,act,detail){ st.memberLog.push({at:ev.at, mid, name:(st.members[mid]||{}).name||'-', act, detail:detail||''}); }
+
 function feed(st,ev,icon,text,kind){
   st.feed.push({id:ev.id,at:ev.at,icon,text,kind:kind||'n'});
   if(st.feed.length>400) st.feed.shift();
@@ -709,6 +762,29 @@ function validate(st, ev){
     case 'MEMBER_ICON': {
       if(!st.members[ev.mid]) return 'ไม่พบผู้ใช้';
       if(ev.by!==ev.mid) return 'ตั้งได้เฉพาะของตัวเอง';
+      return null;
+    }
+    case 'MEMBER_RENAME': {
+      if(!st.members[ev.mid]) return 'ไม่พบผู้ใช้';
+      if(ev.by!==ev.mid) return 'แก้ได้เฉพาะชื่อตัวเอง';
+      const n=(ev.name||'').trim();
+      if(n.length<2) return 'ชื่อสั้นเกินไป';
+      if(/^[\d\s]+$/.test(n)) return 'ชื่อเป็นตัวเลขล้วนไม่ได้';
+      return null;
+    }
+    case 'MEMBER_PP': {
+      if(!st.members[ev.mid]) return 'ไม่พบผู้ใช้';
+      if(ev.by!==ev.mid) return 'แก้ได้เฉพาะของตัวเอง';
+      if(ev.pp && !/^\d{10}$|^\d{13}$/.test(ev.pp)) return 'พร้อมเพย์ต้องเป็นเบอร์ 10 หลัก หรือเลขบัตร 13 หลัก';
+      return null;
+    }
+    /* ขอเคลียร์หนี้ที่จ่ายกันนอกวงแล้ว (ทุกใบของคู่ debtor→creditor) — ต้องให้ Admin อนุมัติ */
+    case 'DEBT_CLEAR_REQUESTED': {
+      const open = Object.values(st.debts).filter(d=>d.status==='OPEN'&&d.outstanding>0&&d.debtor===ev.debtor&&d.creditor===ev.creditor);
+      if(!open.length) return 'ไม่มีหนี้ค้างระหว่างคู่นี้';
+      if(ev.by!==ev.debtor && ev.by!==ev.creditor) return 'เฉพาะคู่กรณีของหนี้นี้';
+      if(Object.values(st.requests).some(r=>r.type==='DEBT_CLEAR'&&r.debtor===ev.debtor&&r.creditor===ev.creditor&&r.status==='PENDING'))
+        return 'มีคำขอเคลียร์คู่นี้ค้างอยู่แล้ว';
       return null;
     }
     case 'JOIN_REQUESTED': {
@@ -910,13 +986,33 @@ function apply(st, ev){
     }
     case 'MEMBER_JOINED': {
       const n = Object.keys(st.members).length;
-      st.members[ev.mid] = {id:ev.mid,name:ev.name,role:'SPECTATOR',seatNo:null,status:'WATCHING',color:AVCOLORS[n%AVCOLORS.length]};
+      st.members[ev.mid] = {id:ev.mid,name:ev.name,role:'SPECTATOR',seatNo:null,status:'WATCHING',color:AVCOLORS[n%AVCOLORS.length],pp:ev.pp||null};
       ensureWallet(st,ev.mid);
+      mlog(st,ev,ev.mid,'เข้ามาในห้อง','เป็นผู้ชม');
       feed(st,ev,'👋',ev.name+' เข้ามาดูในห้อง','n');
       break;
     }
     case 'MEMBER_ICON': {
       st.members[ev.mid].icon = ev.icon || null;
+      break;
+    }
+    case 'MEMBER_RENAME': {
+      const old = st.members[ev.mid].name;
+      st.members[ev.mid].name = ev.name.trim();
+      feed(st,ev,'✏️','"'+old+'" เปลี่ยนชื่อเป็น "'+st.members[ev.mid].name+'"','n');
+      break;
+    }
+    case 'MEMBER_PP': {
+      st.members[ev.mid].pp = ev.pp || null;
+      break;
+    }
+    case 'DEBT_CLEAR_REQUESTED': {
+      const total = Object.values(st.debts)
+        .filter(d=>d.status==='OPEN'&&d.outstanding>0&&d.debtor===ev.debtor&&d.creditor===ev.creditor)
+        .reduce((a,d)=>a+d.outstanding,0);
+      st.requests[ev.id]={id:ev.id,type:'DEBT_CLEAR',by:ev.by,debtor:ev.debtor,creditor:ev.creditor,
+        from:ev.debtor,to:ev.creditor,amount:total,
+        approver:'ADMIN',status:'PENDING',at:ev.at,note:ev.note||''};
       break;
     }
     case 'JOIN_REQUESTED': {
@@ -938,6 +1034,7 @@ function apply(st, ev){
         pushTx(st,ev,'ISSUE_INITIAL','BANK','W:'+ev.mid,ev.amount,'เงินเริ่มต้น');
         feed(st,ev,'✅',m.name+' เข้าร่วมวง (รับเงินเริ่มต้น ฿'+fmtS(ev.amount)+')','g');
       } else feed(st,ev,'✅',m.name+' เข้าร่วมวง','g');
+      mlog(st,ev,ev.mid,'เข้าร่วมวง','ที่นั่ง '+s+(ev.amount>0?' · รับเงินเริ่มต้น ฿'+fmtS(ev.amount):''));
       // เข้ากลางรอบ -> พักรอบนี้
       if(st.curRound && st.curRound.status==='OPEN' && !seatOf(st.curRound,ev.mid))
         st.curRound.seats.push({memberId:ev.mid,pos:st.curRound.seats.length+1,state:'SITTING_OUT',contributed:0,acted:true,tier:null,lastKind:null});
@@ -986,6 +1083,18 @@ function apply(st, ev){
         pushTx(st,ev,'TRANSFER_BORROW','W:'+rq.from,'W:'+rq.to,rq.amount,rq.note);
         st.debts[ev.id]={id:ev.id,debtor:rq.to,creditor:rq.from,principal:rq.amount,outstanding:rq.amount,status:'OPEN'};
         feed(st,ev,'🤝',nameOf(st,rq.from)+' ให้ '+nameOf(st,rq.to)+' ยืมเงิน ฿'+fmtS(rq.amount),'n');
+      } else if(rq.type==='DEBT_CLEAR'){
+        // จ่ายกันนอกวงแล้ว — ลบยอดหนี้ทุกใบของคู่นี้ (ไม่แตะกระเป๋าใคร สมการเงินไม่กระทบ)
+        let amt = 0;
+        Object.values(st.debts).forEach(d=>{
+          if(d.status==='OPEN'&&d.outstanding>0&&d.debtor===rq.debtor&&d.creditor===rq.creditor){
+            amt += d.outstanding; d.outstanding=0; d.status='SETTLED'; d.clearedOutside=true;
+          }
+        });
+        if(amt>0){
+          st.clearedOutside.push({debtor:rq.debtor, creditor:rq.creditor, amount:amt, at:ev.at, approvedBy:ev.by});
+          feed(st,ev,'🧾','เคลียร์หนี้นอกวง: '+nameOf(st,rq.debtor)+' → '+nameOf(st,rq.creditor)+' ฿'+fmtS(amt)+' (Admin อนุมัติ)','y');
+        }
       }
       break;
     }
@@ -1050,6 +1159,8 @@ function apply(st, ev){
     case 'ADMIN_TRANSFERRED': {
       const from=st.members[ev.by], to=st.members[ev.mid];
       from.role='PLAYER'; to.role='ADMIN'; st.room.ownerId=ev.mid;
+      mlog(st,ev,ev.mid,'ได้เป็น Admin','รับต่อจาก '+from.name);
+      mlog(st,ev,ev.by,'พ้นจาก Admin','โอนให้ '+to.name);
       st.adminChangedAt = ev.id;                  // ไว้เด้ง pop-up แจ้งคนที่ได้รับตำแหน่ง
       feed(st,ev,'👑','โอนสิทธิ์ Admin จาก '+from.name+' ให้ '+to.name+' — มงกุฎย้ายไปที่ '+to.name+' แล้ว','y');
       break;
@@ -1148,6 +1259,7 @@ function apply(st, ev){
     case 'MEMBER_REMOVED': {
       const m=st.members[ev.mid]; if(m){ m.status='LEFT'; m.seatNo=null; m.role='SPECTATOR'; }
       if(st.curRound&&st.curRound.status==='OPEN'){ const s=seatOf(st.curRound,ev.mid); if(s&&s.state==='IN') s.state='SITTING_OUT'; }
+      mlog(st,ev,ev.mid,'ออกจากวง', ev.by===ev.mid?'ออกเอง':'Admin เอาออก');
       feed(st,ev,'🚪',(m?m.name:'ผู้เล่น')+' ออกจากวง','n');
       break;
     }
@@ -1387,6 +1499,34 @@ Store.onChange = refresh;
 /* ============================================================
    HELPERS สำหรับ view
    ============================================================ */
+const TX_LABEL = {ISSUE_INITIAL:'เงินเริ่มต้นจาก BANK',TOPUP_GRANT:'Admin เติมเงินให้',TOPUP_REQUEST:'เติมเงิน (อนุมัติแล้ว)',
+  RETURN_TO_BANK:'คืนเงินเข้า BANK',TRANSFER_GIVE:'โอนเงิน',TRANSFER_BORROW:'ยืมเงิน',DEBT_REPAY:'คืนหนี้',
+  ANTE:'ลงกองกลาง',BET:'ลงกอง',UNBET:'คืนจากกอง',PAYOUT:'รับเงินกองกลาง',REVERSAL:'กลับรายการ'};
+const MEMBER_STATUS = {PLAYING:'กำลังเล่น',WATCHING:'ผู้ชม',PENDING_JOIN:'รออนุมัติ',SITTING_OUT:'พัก',LEFT:'ออกจากวงแล้ว',KICKED:'ถูกเอาออก'};
+
+/** สรุปหนี้ — รายคู่ (ใครยืมใคร) และรายคน (ยืมมา/ให้ยืม/ค้าง) */
+function debtStats(){
+  const pairMap = {}, people = {};
+  const P = id => people[id] || (people[id] = {id, borrowed:0, lent:0, owe:0, due:0, oweList:[], dueList:[]});
+  Object.values(S.debts||{}).forEach(d=>{
+    const k = d.debtor+'>'+d.creditor;
+    const p = pairMap[k] || (pairMap[k] = {debtor:d.debtor, creditor:d.creditor, principal:0, repaid:0, outstanding:0});
+    p.principal += d.principal; p.outstanding += d.outstanding;
+    p.repaid += (d.principal - d.outstanding);
+  });
+  const pairs = Object.values(pairMap).sort((a,b)=>b.outstanding-a.outstanding);
+  pairs.forEach(p=>{
+    const dr = P(p.debtor), cr = P(p.creditor);
+    dr.borrowed += p.principal;  cr.lent += p.principal;
+    dr.owe += p.outstanding;     cr.due += p.outstanding;
+    if(p.outstanding>0){
+      dr.oweList.push(nameOf(S,p.creditor)+' ฿'+fmtS(p.outstanding));
+      cr.dueList.push(nameOf(S,p.debtor)+' ฿'+fmtS(p.outstanding));
+    }
+  });
+  return {pairs, people:Object.values(people).sort((a,b)=>(b.owe+b.due)-(a.owe+a.due))};
+}
+
 const meM = () => S.members[me.id] || null;
 const isAdmin = () => { const m=meM(); return !!m && (m.role==='ADMIN'||m.role==='CO_ADMIN'); };
 const isPlayer = () => { const m=meM(); return !!m && m.status==='PLAYING'; };
@@ -1696,14 +1836,28 @@ function vCreate(){
   <div class="foot"><button class="btn big" data-act="doCreate">สร้างห้อง</button></div>`;
 }
 
+/** ชื่อผู้เล่นต้องไม่ใช่ตัวเลขล้วน (กันคนพิมพ์รหัสห้องลงช่องชื่อ) และยาวอย่างน้อย 2 ตัวอักษร */
+function validName(n){
+  n = (n||'').trim();
+  if(n.length<2) return 'ใส่ชื่ออย่างน้อย 2 ตัวอักษร';
+  if(/^[\d\s]+$/.test(n)) return 'ชื่อเป็นตัวเลขล้วนไม่ได้ — ตรงนี้คือชื่อผู้เล่น ไม่ใช่รหัสห้อง';
+  return null;
+}
+
 function vJoin(){
   return `
   <div class="hdr"><button data-act="back">‹</button><b>เข้าห้อง</b></div>
   <div class="body">
-    <div class="card col"><div class="lbl">รหัสห้อง 4 หลัก</div>
+    <div class="card col"><div class="lbl">1️⃣ ชื่อผู้เล่นของคุณ</div>
+      <input id="j_name" placeholder="เช่น สมชาย" value="${esc(me.name)}" maxlength="16">
+      <div class="cap">ชื่อนี้จะแสดงให้ทุกคนในวงเห็น — ห้ามเป็นตัวเลขล้วน</div></div>
+    <div class="card col"><div class="lbl">2️⃣ พร้อมเพย์ของคุณ (เบอร์มือถือ 10 หลัก)</div>
+      <input id="j_pp" placeholder="08xxxxxxxx" maxlength="13" inputmode="numeric" value="${esc(me.pp||'')}">
+      <div class="cap">ใช้ตอนเพื่อนจะโอนคืนหนี้ให้คุณ — ระบบจะสร้าง QR พร้อมเพย์ให้อัตโนมัติ</div></div>
+    <div class="card col"><div class="lbl">3️⃣ รหัสห้อง 4 หลัก (ขอจาก Admin)</div>
       <input id="j_code" placeholder="0000" maxlength="4" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code"
              style="letter-spacing:12px;text-align:center;font-size:30px;font-weight:800">
-      <div class="cap">ขอรหัสจาก Admin ของวง</div></div>
+    </div>
     <div class="ban i">👁 เข้าไปแล้วคุณจะเป็น <b>ผู้ชม</b> ก่อน ต้องกด "ขอเข้าเล่น" แล้วให้ Admin อนุมัติจึงจะลงเงินได้</div>
   </div>
   <div class="foot"><button class="btn big" data-act="doJoin">เข้าห้อง</button></div>`;
@@ -2323,6 +2477,17 @@ function vApprovals(){
           <button class="btn" data-act="approveReq" data-rid="${rq.id}">✓ ยินยอมให้ยืม</button></div>
       </div>`;
     }
+    if(rq.type==='DEBT_CLEAR'){
+      return `<div class="card col" style="border-left:4px solid var(--pot)">
+        <div class="row"><span class="pill">🧾 ขอเคลียร์หนี้นอกวง</span></div>
+        <b class="h2">${esc(nameOf(S,rq.debtor))} → ${esc(nameOf(S,rq.creditor))}</b>
+        <span class="money-l num pot">฿${fmt(rq.amount)}</span>
+        <div class="cap">แจ้งว่าจ่ายกันเองนอกวง (เงินสด/พร้อมเพย์) เรียบร้อยแล้ว · ขอโดย ${esc(nameOf(S,rq.by))}</div>
+        <div class="ban y">⚠ อนุมัติแล้วยอดหนี้นี้จะถูกลบออกจากระบบ — เช็คกับทั้งคู่ก่อนว่าจ่ายจริง</div>
+        <div class="g2"><button class="btn ghost" data-act="rejectReq" data-rid="${rq.id}">ปฏิเสธ</button>
+          <button class="btn" data-act="approveReq" data-rid="${rq.id}">✓ อนุมัติเคลียร์</button></div>
+      </div>`;
+    }
     return '';
   }).join('');
 }
@@ -2431,19 +2596,34 @@ function txRow(t){
 }
 
 /** รายการย่อย "ยืมใครบ้าง / ให้ใครยืมบ้าง" */
-function debtLines(s){
-  const line = (x,dir) => `<div class="row" style="gap:8px;padding:3px 0">
+function debtLines(s, ownerId){
+  const mine = ownerId===me.id;
+  const line = (x,dir) => {
+    // ฝั่ง "ยืมมา" ของตัวเอง → กดชื่อเจ้าหนี้เพื่อดูพร้อมเพย์ + QR จ่ายคืน
+    const clickable = mine && dir==='owe';
+    return `<div class="row" style="gap:8px;padding:3px 0${clickable?';cursor:pointer':''}"
+        ${clickable?`data-act="ppqr" data-mid="${x.id}" data-amt="${x.amount}"`:''}>
       <span class="av2" style="width:26px;height:26px;font-size:10px">${esc(initials(nameOf(S,x.id)))}</span>
-      <span class="cap" style="color:var(--tp)">${esc(nameOf(S,x.id))}</span>
+      <span class="cap" style="color:var(--tp)">${esc(nameOf(S,x.id))}${clickable?' <span class="pill" style="height:20px;font-size:9.5px">📱 QR จ่ายคืน ›</span>':''}</span>
       <span class="sp"></span>
       <span class="money-s num ${dir==='owe'?'out':'in'}">฿${fmtS(x.amount)}</span></div>`;
+  };
+  const pendClear = pair => Object.values(S.requests).some(r=>r.type==='DEBT_CLEAR'&&r.status==='PENDING'&&r.debtor===pair.debtor&&r.creditor===pair.creditor);
+  const clearBtn = (x,dir) => {
+    if(!mine) return '';
+    const pair = dir==='owe' ? {debtor:me.id,creditor:x.id} : {debtor:x.id,creditor:me.id};
+    if(pendClear(pair)) return `<div class="cap" style="padding-left:34px">⏳ ส่งคำขอเคลียร์แล้ว รอ Admin อนุมัติ</div>`;
+    return `<button class="pill" style="align-self:flex-start;margin-left:34px;height:26px;font-size:10.5px" data-act="askDebtClear"
+      data-debtor="${pair.debtor}" data-creditor="${pair.creditor}" data-amt="${x.amount}" data-name="${esc(nameOf(S,x.id))}" data-dir="${dir}">
+      🧾 จ่ายนอกวงแล้ว — ขอเคลียร์ยอดนี้</button>`;
+  };
   return `
     ${s.owes.length?`<div class="col" style="gap:2px">
       <span class="lbl out">🔴 ยืมมา — ยังต้องคืน ฿${fmtS(s.owesTotal)}</span>
-      ${s.owes.map(x=>line(x,'owe')).join('')}</div>`:''}
+      ${s.owes.map(x=>line(x,'owe')+clearBtn(x,'owe')).join('')}</div>`:''}
     ${s.lent.length?`<div class="col" style="gap:2px">
       <span class="lbl in">🟢 ให้ยืมไป — รอรับคืน ฿${fmtS(s.lentTotal)}</span>
-      ${s.lent.map(x=>line(x,'lend')).join('')}</div>`:''}`;
+      ${s.lent.map(x=>line(x,'lend')+clearBtn(x,'lend')).join('')}</div>`:''}`;
 }
 
 /** การ์ดสรุปหนี้ — Admin เห็นทุกคน · ผู้เล่นเห็นเฉพาะของตัวเอง */
@@ -2464,7 +2644,7 @@ function vDebtPanel(){
           <span class="money-l num ${s.lentTotal?'in':'mut'}">฿${fmtS(s.lentTotal)}</span></div>
       </div>
       ${(s.owesTotal||s.lentTotal)
-        ? debtLines(s) + `<div class="row" style="border-top:1px solid var(--border);padding-top:7px">
+        ? debtLines(s, me.id) + `<div class="row" style="border-top:1px solid var(--border);padding-top:7px">
             <span class="lbl">สุทธิ</span><span class="sp"></span>
             <b class="num ${s.net>0?'in':s.net<0?'out':'mut'}">${s.net>0?'+':''}${fmtS(s.net)}</b></div>`
         : `<div class="empty" style="padding:14px"><span class="ic">✅</span>
@@ -2494,7 +2674,7 @@ function vDebtPanel(){
           <td class="num" style="color:${s.net>0?'var(--in)':s.net<0?'var(--out)':'var(--tm)'}">${s.net>0?'+':''}${fmtS(s.net)}</td>
         </tr>
         ${open===p.id?`<tr><td colspan="4" style="background:var(--bg-inset)">
-          <div class="col" style="gap:7px;padding:4px 2px">${debtLines(s)}</div></td></tr>`:''}`).join('')}
+          <div class="col" style="gap:7px;padding:4px 2px">${debtLines(s, p.id)}</div></td></tr>`:''}`).join('')}
     </tbody></table>
   </div>`;
 }
@@ -2505,8 +2685,19 @@ function vHistory(){
   if(f==='mine') txs = txs.filter(t=>t.from==='W:'+me.id||t.to==='W:'+me.id);
   if(f==='pot') txs = txs.filter(t=>t.type==='BET'||t.type==='PAYOUT'||t.type==='UNBET');
   if(f==='bank') txs = txs.filter(t=>t.from==='BANK'||t.to==='BANK');
+  const cleared = S.clearedOutside||[];
   return `
   ${vDebtPanel()}
+  ${cleared.length?`<div class="card col" style="gap:6px">
+    <div class="row"><b class="h2">🧾 เคลียร์เงินออกนอกวงแล้ว</b><span class="sp"></span>
+      <span class="pill pot">รวม ฿${fmtS(cleared.reduce((a,c)=>a+c.amount,0))}</span></div>
+    <div class="cap">รายการที่จ่ายกันเองนอกวง (เงินสด/พร้อมเพย์) และ Admin อนุมัติให้ลบยอดออกจากระบบแล้ว</div>
+    ${cleared.slice().reverse().map(c=>`<div class="row" style="gap:8px;padding:3px 0">
+      <span class="cap" style="color:var(--tp)">${esc(nameOf(S,c.debtor))} จ่าย ${esc(nameOf(S,c.creditor))}</span>
+      <span class="sp"></span>
+      <span class="money-s num pot">฿${fmtS(c.amount)}</span>
+      <span class="cap">${new Date(c.at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})}</span></div>`).join('')}
+  </div>`:''}
   <div class="row" style="gap:6px;flex-wrap:wrap">
     ${[['all','ทั้งหมด'],['mine','ของฉัน'],['pot','กองกลาง'],['bank','เบิกเงิน']].map(([k,l])=>
       `<button class="pill" data-act="hfilter" data-f="${k}" style="${f===k?'background:var(--brand);color:#04140D':''}">${l}</button>`).join('')}
@@ -2577,7 +2768,13 @@ function vSettings(){
   const m = meM();
   const myIcon = m ? m.icon : null;
   const iconCard = (m && (isPlayer()||adm) && !adm) ? `
-  <div class="card col"><b class="h2">🎭 ไอคอนของฉันบนโต๊ะ</b>
+  <div class="card col"><b class="h2">🎭 ชื่อและไอคอนของฉัน</b>
+    <div class="row"><input id="s_myname" value="${esc(m.name)}" maxlength="16" placeholder="ชื่อผู้เล่น">
+      <button class="btn sec sm" data-act="saveMyName" style="flex:none">บันทึกชื่อ</button></div>
+    ${/^[\d\s]+$/.test(m.name)?'<div class="ban y">⚠ ชื่อของคุณเป็นตัวเลข — น่าจะเผลอใส่รหัสห้องมา เปลี่ยนเป็นชื่อจริงได้ตรงนี้</div>':''}
+    <div class="row"><input id="s_mypp" value="${esc(m.pp||'')}" maxlength="13" inputmode="numeric" placeholder="พร้อมเพย์ (เบอร์ 10 หลัก)">
+      <button class="btn sec sm" data-act="saveMyPp" style="flex:none">บันทึก</button></div>
+    ${!m.pp?'<div class="cap">ใส่พร้อมเพย์ไว้ เพื่อนที่ยืมเงินคุณจะได้สแกน QR จ่ายคืนได้</div>':''}
     <div class="cap">เลือกตัวแทนของคุณ ทุกคนในวงจะเห็นแบบเดียวกัน</div>
     <div class="iconpick">
       <button class="ic ${!myIcon?'on':''}" data-act="setIcon" data-v="">${esc(initials(m.name))}</button>
@@ -2722,6 +2919,31 @@ function renderModal(){
   else if(m.k==='repay') html = mTransfer('repay');
   else if(m.k==='manage') html = mManage(m.mid);
   else if(m.k==='more') html = mMore();
+  else if(m.k==='ppqr'){
+    const t = S.members[m.mid];
+    html = mWrap(`
+      <b class="h1" style="text-align:center">📱 จ่ายคืน ${esc(t.name)}</b>
+      <div class="card col" style="align-items:center;gap:4px">
+        <span class="cap">ยอดที่ค้าง</span>
+        <span class="money num out">฿${fmt(m.amt)}</span>
+        ${t.pp?`<span class="cap">พร้อมเพย์: <b class="num" style="color:var(--tp)">${t.pp.length===10?t.pp.replace(/(\d{3})(\d{3})(\d{4})/,'$1-$2-$3'):t.pp}</b></span>
+                <button class="btn sec sm" data-act="copyPp" data-pp="${t.pp}">คัดลอกเลขพร้อมเพย์</button>`
+              :`<div class="ban y">⚠ ${esc(t.name)} ยังไม่ได้ใส่พร้อมเพย์ — บอกให้เขาไปใส่ในหน้าตั้งค่า</div>`}
+      </div>
+      ${t.pp?`<div id="ppqrbox" style="display:flex;justify-content:center"><span class="cap">กำลังสร้าง QR…</span></div>
+        <button class="btn" data-act="savePpImg">💾 บันทึกรูป QR ลงเครื่อง</button>`:''}
+      <button class="btn ghost" data-act="closeModal">ปิด</button>`);
+    setTimeout(async ()=>{
+      if(!t.pp) return;
+      try{
+        await ensureQrLib();
+        const cv = drawPpCanvas(promptpayPayload(t.pp, m.amt), t.name, m.amt);
+        cv.style.cssText='width:min(75vw,260px);height:auto;border-radius:12px';
+        const box=document.getElementById('ppqrbox');
+        if(box){ box.innerHTML=''; box.appendChild(cv); window._ppCv=cv; window._ppName=t.name; }
+      }catch(e){ const box=document.getElementById('ppqrbox'); if(box) box.innerHTML='<span class="cap out">สร้าง QR ไม่สำเร็จ: '+esc(e.message)+'</span>'; }
+    },30);
+  }
   else if(m.k==='adminQuick'){
     const r = S.curRound, pend = pendingForAdmin().length;
     html = mWrap(`
@@ -3008,9 +3230,9 @@ const A = {
   modal(d){ UI.modal={k:d.m,mid:d.mid}; UI.form.amt=''; UI.form.to=d.mid||null; UI.form.mmode='add'; render(); },
   openPend(){ UI.screen='approvals'; render(); },
 
-  goCreate(){ const n=$('#myname').value.trim(); if(!n) return toast('ใส่ชื่อก่อนนะ','r');
+  goCreate(){ const n=$('#myname').value.trim(); const err=validName(n); if(err) return toast(err,'r');
     me.name=n; Me.save(me); UI.screen='create'; UI.form={seats:5,start:1000,ante:40,multiStreet:true,chips:'20,40,60,80,100',loans:true,strict:true,autoClose:true,autoGrant:true}; render(); },
-  goJoin(){ const n=$('#myname').value.trim(); if(!n) return toast('ใส่ชื่อก่อนนะ','r');
+  goJoin(){ const n=$('#myname').value.trim(); const err=validName(n); if(err) return toast(err,'r');
     me.name=n; Me.save(me); UI.screen='join'; render(); },
   seats(d){ UI.form.seats = Math.max(1,Math.min(20,(UI.form.seats||5)+Number(d.d))); render(); },
   setStart(d){ UI.form.start = Number(d.v); render(); },
@@ -3033,13 +3255,20 @@ const A = {
     toast('สร้างห้องแล้ว รหัส '+code,'g');
   },
   async doJoin(){
+    const nm = $('#j_name').value.trim();
+    const nameErr = validName(nm);
+    if(nameErr) return toast(nameErr,'r');
+    const pp = $('#j_pp').value.replace(/\D/g,'');
+    if(!/^\d{10}$|^\d{13}$/.test(pp)) return toast('พร้อมเพย์ต้องเป็นเบอร์ 10 หลัก หรือเลขบัตร 13 หลัก','r');
+    me.name = nm; me.pp = pp; Me.save(me);
     const code = $('#j_code').value.replace(/\D/g,'');
     if(code.length!==4) return toast('รหัสห้องต้องเป็นตัวเลข 4 หลัก','r');
     toast('กำลังเข้าห้อง…','y');
     try{ await Store.open(code, Store.mode); }catch(e){ return toast(e.message,'r'); }
     S = reduce(Store.events);
     if(!S.room) return toast('ไม่พบห้องนี้ — ตรวจรหัสหรือโหมดการเชื่อมต่อ','r');
-    if(!S.members[me.id]) await Store.append({t:'MEMBER_JOINED',mid:me.id,name:me.name});
+    if(!S.members[me.id]) await Store.append({t:'MEMBER_JOINED',mid:me.id,name:me.name,pp:me.pp||null});
+    else if(me.pp && S.members[me.id].pp!==me.pp) await Store.append({t:'MEMBER_PP',mid:me.id,pp:me.pp});
     LastRoom.save(code, Store.mode);
     UI.screen='home'; refresh();
   },
@@ -3191,6 +3420,36 @@ const A = {
   copyCode(){ navigator.clipboard?.writeText(S.room.code); toast('คัดลอกรหัสห้องแล้ว','g'); },
   hfilter(d){ UI.form.hfilter=d.f; render(); },
   setIcon(d){ cmd({t:'MEMBER_ICON',mid:me.id,icon:d.v||null}); },
+  async saveMyName(){
+    const n = $('#s_myname').value.trim();
+    const err = validName(n); if(err) return toast(err,'r');
+    if(await cmd({t:'MEMBER_RENAME',mid:me.id,name:n})){ me.name=n; Me.save(me); toast('เปลี่ยนชื่อแล้ว','g'); }
+  },
+  async saveMyPp(){
+    const pp = $('#s_mypp').value.replace(/\D/g,'');
+    if(!/^\d{10}$|^\d{13}$/.test(pp)) return toast('พร้อมเพย์ต้องเป็นเบอร์ 10 หลัก หรือเลขบัตร 13 หลัก','r');
+    if(await cmd({t:'MEMBER_PP',mid:me.id,pp})){ me.pp=pp; Me.save(me); toast('บันทึกพร้อมเพย์แล้ว','g'); }
+  },
+  ppqr(d){ UI.modal={k:'ppqr',mid:d.mid,amt:Number(d.amt)}; render(); },
+  copyPp(d){ navigator.clipboard?.writeText(d.pp); toast('คัดลอกเลขพร้อมเพย์แล้ว','g'); },
+  savePpImg(){
+    if(!window._ppCv) return toast('QR ยังไม่พร้อม','r');
+    window._ppCv.toBlob(b=>{
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(b);
+      a.download='promptpay-'+(window._ppName||'pay')+'.png';
+      a.click();
+      toast('บันทึกรูปแล้ว — เปิดแอปธนาคารแล้วสแกนจากอัลบั้มได้เลย','g');
+    },'image/png');
+  },
+  askDebtClear(d){
+    const isOwe = d.dir==='owe';
+    UI.modal={k:'confirm',title:'🧾 เคลียร์หนี้นอกวง?',
+      text:(isOwe?'ยืนยันว่าคุณจ่าย '+d.name+' ฿'+fmtS(Number(d.amt))+' นอกวงเรียบร้อยแล้ว':'ยืนยันว่า '+d.name+' จ่ายคุณ ฿'+fmtS(Number(d.amt))+' นอกวงเรียบร้อยแล้ว')
+        +' — ยอดหนี้นี้จะถูกลบออกจากระบบเมื่อ Admin อนุมัติ',
+      ok:'ส่งคำขอเคลียร์',
+      fn:async()=>{ if(await cmd({t:'DEBT_CLEAR_REQUESTED',debtor:d.debtor,creditor:d.creditor})) toast('ส่งคำขอแล้ว รอ Admin อนุมัติ','y'); }};
+    render(); },
   debtToggle(d){ UI.form.debtOpen = (UI.form.debtOpen===d.mid) ? null : d.mid; render(); },
   async returnAll(){
     for(const [mid,w] of Object.entries(S.wallets)){
@@ -3200,13 +3459,52 @@ const A = {
   closeRoom(){ UI.modal={k:'confirm',title:'ปิดห้องถาวร?',text:'หลังปิดจะอ่านได้อย่างเดียว แก้ไขอะไรไม่ได้อีก',ok:'ปิดห้อง',danger:true,
     fn:()=>cmd({t:'ROOM_CLOSED'})}; render(); },
   exportCsv(){
-    const rows=[['seq','เวลา','ประเภท','จาก','ไป','จำนวน(บาท)','หมายเหตุ']];
-    const nm=a=>a==='BANK'?'BANK':a.startsWith('W:')?nameOf(S,a.slice(2)):'กองกลาง';
-    S.txs.forEach(t=>rows.push([t.seq,new Date(t.at).toLocaleString('th-TH'),t.type,nm(t.from),nm(t.to),(t.amount/100).toFixed(2),t.note]));
-    const csv='﻿'+rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const T = s=>(s/100).toFixed(2);
+    const D = t=>new Date(t).toLocaleString('th-TH');
+    const nm = a=>a==='BANK'?'BANK':a.startsWith('W:')?nameOf(S,a.slice(2)):'กองกลาง';
+    const rows=[];
+    const sec=(title,head)=>{ if(rows.length) rows.push([]); rows.push(['### '+title]); rows.push(head); };
+
+    /* 1) ธุรกรรมทั้งหมด */
+    sec('รายการธุรกรรมทั้งหมด', ['ลำดับ','เวลา','ประเภท','จาก','ไป','จำนวน(บาท)','หมายเหตุ']);
+    S.txs.forEach(t=>rows.push([t.seq,D(t.at),TX_LABEL[t.type]||t.type,nm(t.from),nm(t.to),T(t.amount),t.note]));
+
+    /* 2) เข้า-ออกวง */
+    sec('ประวัติเข้า-ออกวง', ['เวลา','ผู้เล่น','เหตุการณ์','รายละเอียด']);
+    (S.memberLog||[]).forEach(l=>rows.push([D(l.at), l.name || nameOf(S,l.mid), l.act, l.detail]));
+
+    /* 3) หนี้รายคู่ */
+    const ds = debtStats();
+    sec('หนี้ระหว่างผู้เล่น (รายคู่)', ['ลูกหนี้','เจ้าหนี้','ยืมไปทั้งหมด(บาท)','คืนแล้ว(บาท)','ยังค้าง(บาท)','สถานะ']);
+    ds.pairs.forEach(p=>rows.push([nameOf(S,p.debtor),nameOf(S,p.creditor),T(p.principal),T(p.repaid),T(p.outstanding),
+      p.outstanding>0?'ยังค้าง':'เคลียร์แล้ว']));
+    if(!ds.pairs.length) rows.push(['(ไม่มีการยืมเงินกันในวงนี้)']);
+
+    /* 4) สรุปหนี้รายคน */
+    sec('สรุปหนี้รายคน', ['ผู้เล่น','ยืมมาทั้งหมด','ให้ยืมทั้งหมด','ยังต้องคืน','ยังรอรับคืน','สุทธิ','ยืมมาจากใครบ้าง','ให้ใครยืมบ้าง']);
+    ds.people.forEach(p=>rows.push([nameOf(S,p.id),T(p.borrowed),T(p.lent),T(p.owe),T(p.due),T(p.due-p.owe),
+      p.oweList.join(' / ')||'—', p.dueList.join(' / ')||'—']));
+
+    /* 5) สรุปเงินรายคน */
+    sec('สรุปเงินรายคน', ['ผู้เล่น','สถานะ','เบิกจาก BANK','คืนเข้า BANK','ลงกองรวม','ชนะกองรวม','คงเหลือในกระเป๋า','ได้/เสีย']);
+    Object.values(S.members).forEach(m=>{
+      const w=S.wallets[m.id]||{balance:0,issuedIn:0,returnedOut:0,totalBet:0,totalWon:0};
+      rows.push([m.name, MEMBER_STATUS[m.status]||m.status, T(w.issuedIn), T(w.returnedOut),
+        T(w.totalBet), T(w.totalWon), T(w.balance), T(w.balance-(w.issuedIn-w.returnedOut))]);
+    });
+
+    /* 6) ภาพรวมห้อง */
+    sec('ภาพรวมห้อง', ['หัวข้อ','ค่า']);
+    rows.push(['ชื่อห้อง',S.room.name], ['รหัสห้อง',S.room.code],
+      ['เบิกจาก BANK สุทธิ',T(netIssued(S))], ['เงินในระบบ',T(sumWallets(S)+potNow(S))],
+      ['ยอดตรงกันไหม', sumWallets(S)+potNow(S)===netIssued(S)?'ตรง':'ไม่ตรง'],
+      ['จำนวนรอบที่เล่น',S.rounds.length], ['ออกรายงานเมื่อ',D(Date.now())]);
+
+    const csv='﻿'+rows.map(r=>r.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')).join('\r\n');
     const a=document.createElement('a');
-    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-    a.download='ledger-'+S.room.code+'.csv'; a.click(); toast('ดาวน์โหลดแล้ว','g'); },
+    a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+    a.download='pk-'+S.room.code+'-'+new Date().toISOString().slice(0,10)+'.csv';
+    a.click(); toast('ดาวน์โหลดรายงานแล้ว','g'); },
 
 };
 function getFbCfg(){ return sbCfg(); }
