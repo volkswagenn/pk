@@ -2706,6 +2706,28 @@ function vHistory(){
   <div class="card col" style="gap:6px">
     ${txs.length?txs.map(t=>txRow(t)).join(''):'<div class="empty"><span class="ic">🕘</span><span class="cap">ยังไม่มีรายการ</span></div>'}
   </div>
+  ${(()=>{ const ds=debtStats(); if(!ds.pairs.length) return '';
+    return `<div class="card col"><b class="h2">🤝 สรุปหนี้รายคน</b>
+      <div class="cap">ยืมมา = ต้องคืนเขา · ให้ยืม = รอเขาคืน</div>
+      <table><thead><tr><th>ผู้เล่น</th><th>ยืมมา</th><th>ให้ยืม</th><th>ยังค้าง</th></tr></thead><tbody>
+      ${ds.people.map(p=>`<tr>
+        <td>${esc(nameOf(S,p.id))}${p.id===me.id?' (คุณ)':''}</td>
+        <td class="num ${p.borrowed?'out':'mut'}">${p.borrowed?fmtS(p.borrowed):'—'}</td>
+        <td class="num ${p.lent?'in':'mut'}">${p.lent?fmtS(p.lent):'—'}</td>
+        <td class="num"><b class="${p.due-p.owe>0?'in':p.due-p.owe<0?'out':'mut'}">${p.due-p.owe>0?'+':''}${fmtS(p.due-p.owe)}</b></td>
+      </tr>${(p.oweList.length||p.dueList.length)?`<tr><td colspan="4" class="cap" style="padding-top:0">
+        ${p.oweList.length?'ต้องคืน: '+esc(p.oweList.join(' · ')):''}${p.oweList.length&&p.dueList.length?' | ':''}${p.dueList.length?'รอรับคืน: '+esc(p.dueList.join(' · ')):''}
+      </td></tr>`:''}`).join('')}
+      </tbody></table></div>`; })()}
+
+  ${(S.memberLog||[]).length?`<div class="card col"><b class="h2">🚪 ประวัติเข้า-ออกวง</b>
+    ${S.memberLog.slice().reverse().map(l=>`<div class="row" style="gap:8px;padding:4px 0;border-bottom:1px solid var(--border)">
+      <b style="font:600 12px/1.2 var(--f)">${esc(l.name||nameOf(S,l.mid))}</b>
+      <span class="cap">${esc(l.act)}${l.detail?' · '+esc(l.detail):''}</span>
+      <span class="sp"></span><span class="cap">${new Date(l.at).toLocaleString('th-TH',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
+    </div>`).join('')}
+  </div>`:''}
+
   <div class="card col"><b class="h2">เหตุการณ์ในห้อง</b>
     ${S.feed.slice(-30).reverse().map(f=>`<div class="row" style="gap:8px;padding:5px 0;border-bottom:1px solid var(--border)">
       <span>${f.icon}</span><span class="cap" style="color:var(--ts)">${esc(f.text)}</span>
