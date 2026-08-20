@@ -1877,6 +1877,7 @@ function vRoom(){
   const scr = UI.screen;
   let body='';
   if(scr==='approvals') body = vApprovals();
+  else if(scr==='adminq') body = vAdminInbox();
   else if(scr==='players') body = vPlayers();
   else if(scr==='history') body = vHistory();
   else if(scr==='settings') body = vSettings();
@@ -1902,7 +1903,7 @@ function vRoom(){
 }
 
 function vHeader(){
-  const n = pendingForAdmin().length + pendingForMe().length;
+  const nAdm = isAdmin() ? pendingForAdmin().length : 0;
   const w = myWallet();
   const canSee = isPlayer() || isAdmin();
   const sync = Store.mode!=='cloud' ? '💻' : Store.rt ? '<span class="live"></span>' : Store.online ? '🔄' : '⚠️';
@@ -1916,18 +1917,20 @@ function vHeader(){
     <span class="sp"></span>
     ${canSee?`<button class="hbtn" data-act="modal" data-m="topup" title="เติมเงิน">➕</button>
               <button class="hbtn" data-act="modal" data-m="transfer" title="โอนเงิน">💸</button>`:''}
+    ${isAdmin()?`<button class="hbtn ${nAdm?'pulse':''}" data-act="nav" data-s="adminq" title="คำขอรอ Admin อนุมัติ">🔔${nAdm?`<span class="dot2">${nAdm}</span>`:''}</button>`:''}
     <button class="hbtn" data-act="syncInfo" title="สถานะการซิงก์">${sync}</button>
   </div>`;
 }
 
 function vNav(){
-  // 🏠 ห้อง อยู่ตรงกลางเสมอ เป็นปุ่มวงกลมยกเด่น · แท็บอนุมัติใช้กระดิ่ง 🔔 พร้อม badge
-  const nBadge = isAdmin() ? pendingForAdmin().length + pendingForMe().length : pendingForMe().length;
+  // 🏠 ห้อง ตรงกลางเสมอ · แท็บ ✅ อนุมัติ = คำขอที่รอ "ฉัน" ตอบ (ทุกคน)
+  // ส่วนงานอนุมัติของ Admin อยู่ที่กระดิ่ง 🔔 บน top bar (เฉพาะ Admin)
+  const nBadge = pendingForMe().length;
   const items = isAdmin()
-    ? [['approvals','🔔','อนุมัติ'],['players','👥','ผู้เล่น'],['home','🏠','ห้อง'],['history','🕘','ประวัติ'],['settings','⚙️','ตั้งค่า']]
+    ? [['approvals','✅','อนุมัติ'],['players','👥','ผู้เล่น'],['home','🏠','ห้อง'],['history','🕘','ประวัติ'],['settings','⚙️','ตั้งค่า']]
     : isPlayer()
-      ? [['wallet','💰','กระเป๋า'],['approvals','🔔','แจ้งเตือน'],['home','🏠','ห้อง'],['history','🕘','ประวัติ'],['settings','⚙️','อื่นๆ']]
-      : [['approvals','🔔','แจ้งเตือน'],['home','🏠','ห้อง'],['history','🕘','ประวัติ']];
+      ? [['approvals','✅','อนุมัติ'],['wallet','💰','กระเป๋า'],['home','🏠','ห้อง'],['history','🕘','ประวัติ'],['settings','⚙️','อื่นๆ']]
+      : [['approvals','✅','อนุมัติ'],['home','🏠','ห้อง'],['history','🕘','ประวัติ']];
   return `<div class="nav" style="grid-template-columns:repeat(${items.length},1fr)">
     ${items.map(([k,i,l])=>{
       if(k==='home') return `<button data-act="nav" data-s="home" class="navhome ${UI.screen==='home'?'on':''}">
@@ -2410,7 +2413,7 @@ function vAdminControl(){
         <button class="btn sm" style="margin-left:auto" data-act="payAlone" data-m="${only.memberId}">จ่ายเลย</button></div>`; })() : '';
 
   return `
-  ${pend.length?`<button class="notice" data-act="nav" data-s="approvals">🔔 ${pend.length} รออนุมัติ ›</button>`:''}
+  ${pend.length?`<button class="notice" data-act="nav" data-s="adminq">🔔 ${pend.length} รออนุมัติ ›</button>`:''}
   <div class="g2">
     <div class="card col" style="gap:3px"><span class="cap">เบิกจาก BANK</span><span class="money-l num">฿${fmtS(ni)}</span></div>
     <div class="card col" style="gap:3px"><span class="cap">เงินในระบบ</span>
@@ -2448,10 +2451,20 @@ function vAdminControl(){
 }
 
 /* ---------- approvals ---------- */
+/* แท็บ 🔔 บน nav (ทุกคน) = คำขอที่รอ "ฉัน" ตอบ เช่น มีคนขอยืมเงินฉัน */
 function vApprovals(){
-  const mine = pendingForMe(), adm = isAdmin()?pendingForAdmin():[];
-  const all = [...mine,...adm];
-  if(!all.length) return `<div class="empty"><span class="ic">✨</span><b>ไม่มีคำขอรออนุมัติ</b><span class="cap">เคลียร์หมดแล้ว</span></div>`;
+  const all = pendingForMe();
+  if(!all.length) return `<div class="empty"><span class="ic">✨</span><b>ไม่มีอะไรรอคุณตอบ</b><span class="cap">มีคนขอยืมเงินหรือส่งคำขอถึงคุณ จะเด้งมาที่นี่</span></div>`;
+  return reqCards(all);
+}
+/* กระดิ่งบน top bar (เฉพาะ Admin) = งานอนุมัติของ Admin ทั้งหมด */
+function vAdminInbox(){
+  if(!isAdmin()) return `<div class="empty"><span class="ic">🔒</span><b>เฉพาะ Admin</b></div>`;
+  const all = pendingForAdmin();
+  if(!all.length) return `<div class="empty"><span class="ic">✨</span><b>ไม่มีคำขอรออนุมัติ</b><span class="cap">ขอเข้าเล่น · เติมเงิน · เคลียร์หนี้ จะเด้งมาที่นี่</span></div>`;
+  return reqCards(all);
+}
+function reqCards(all){
   return all.map(rq=>{
     if(rq.type==='JOIN'){
       const st = S.room.settings;
@@ -2989,7 +3002,7 @@ function renderModal(){
         <span class="cap">${r ? 'รอบที่ '+r.index+' · '+(r.status==='OPEN'?(r.phase==='ANTE'?'กำลังลงกองกลาง':'เปิดรับลงเงิน'):r.status==='LOCKED'?'ปิดรับแล้ว':'จบแล้ว') : 'ยังไม่มีรอบที่เปิด'}</span>
       </div>
       ${roundControls(r, true)}
-      ${pend?`<button class="btn sec" data-act="nav" data-s="approvals">🔔 มีคำขอรออนุมัติ ${pend} รายการ</button>`:''}
+      ${pend?`<button class="btn sec" data-act="nav" data-s="adminq">🔔 มีคำขอรออนุมัติ ${pend} รายการ</button>`:''}
       <button class="btn ghost" data-act="closeModal">ปิด</button>
       <div class="cap" style="text-align:center">เคล็ดลับ: กดปุ่ม 👑 ค้างแล้วลาก เพื่อย้ายไปวางมุมที่ถนัด</div>`);
   }
