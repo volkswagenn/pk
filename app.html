@@ -1628,28 +1628,40 @@ function updateTurnNag(){
   if((!(anteDue || betDue) || !visible) && _nag) stopNag();
 }
 
-/* ---------- ป๊อปอัพอัตโนมัติ: สรุปผู้ชนะ (ทุกเครื่อง) + เปิดไพ่กลาง ---------- */
-let sumAuto = true, sumSecs = 5, _sumTimer = null;
+/* ---------- ป๊อปอัพอัตโนมัติ: สรุปผู้ชนะ + เปิดไพ่กลาง ----------
+   Admin ตั้งค่าเป็นของห้อง (ซิงก์ทุกเครื่อง) ผ่าน settings:
+     popupReveal / popupSummary = -1 ไม่แสดงเลย · 0 ค้างไว้จนกดปิด · N>0 ปิดเองใน N วินาที */
+let _sumTimer = null;
+let sumAuto = true, sumSecs = 5;                        // ค่าเก่าต่อเครื่อง — ใช้เป็น fallback ห้องเก่า
+
+/** อ่านค่าของ popup แต่ละชนิดจากตั้งค่าห้อง */
+function popupCfg(kind){                                // kind: 'Reveal' | 'Summary'
+  const v = S.room && S.room.settings ? S.room.settings['popup'+kind] : undefined;
+  if(v===undefined || v===null) return sumAuto ? Math.max(2,sumSecs) : 0;   // ห้องเก่า: ตามค่าเดิมของเครื่อง
+  return v;
+}
 
 /** ติ๊ก "ปิดอัตโนมัติ" ของป๊อปอัพที่เปิดอยู่ตอนนี้ — รีเซ็ตเป็นติ๊กไว้ทุกครั้งที่เปิดใหม่ */
-let autoTick = true;
+let autoTick = true, _autoKind = 'Summary';
 
 function armAutoClose(){
   clearTimeout(_sumTimer);
-  if(!sumAuto || !autoTick) return;          // ปิดไว้ในตั้งค่า หรือผู้ใช้ติ๊กออกเอง = ไม่ปิดให้
+  const secs = popupCfg(_autoKind);
+  if(secs<=0 || !autoTick) return;           // ค้างไว้ / ผู้ใช้ติ๊กออกเอง = ไม่ปิดให้
   _sumTimer = setTimeout(()=>{
     if(UI.modal && (UI.modal.k==='summary' || UI.modal.k==='reveal')){ UI.modal=null; render(); }
-  }, Math.max(2, sumSecs)*1000);
+  }, Math.max(2, secs)*1000);
 }
 /** เรียกตอนเปิดป๊อปอัพใหม่ — ติ๊กกลับมาเสมอ */
-function scheduleSummaryClose(){ autoTick = true; armAutoClose(); }
+function scheduleSummaryClose(kind){ _autoKind = kind||'Summary'; autoTick = true; armAutoClose(); }
 
 /** แถบติ๊กปิดอัตโนมัติ ใช้ร่วมกันทั้งหน้าสรุปและหน้าเปิดไพ่ */
-function autoCloseRow(){
-  if(!sumAuto) return `<div class="cap" style="text-align:center">ปิดอัตโนมัติถูกปิดไว้ในตั้งค่า — กดปิดเอง</div>`;
+function autoCloseRow(kind){
+  const secs = popupCfg(kind||_autoKind);
+  if(secs<=0) return `<div class="cap" style="text-align:center">ตั้งไว้ให้ค้างจนกดปิดเอง${isAdmin()?' (เปลี่ยนได้ในตั้งค่า)':''}</div>`;
   return `<button class="autorow ${autoTick?'on':''}" data-act="toggleAutoTick">
     <span class="bx">${autoTick?'✓':''}</span>
-    <span class="tx">${autoTick?'ปิดอัตโนมัติใน '+sumSecs+' วินาที':'ค้างไว้ — กดปิดเองเมื่อดูเสร็จ'}</span>
+    <span class="tx">${autoTick?'ปิดอัตโนมัติใน '+secs+' วินาที':'ค้างไว้ — กดปิดเองเมื่อดูเสร็จ'}</span>
   </button>`;
 }
 
@@ -1702,8 +1714,11 @@ function maybePopups(){
   const last = done.length ? done[done.length-1] : null;
   if(last && seenSettled !== last.id){
     seenSettled = last.id;
-    if(!busy){ UI.modal={k:'summary',round:last}; scheduleSummaryClose(); render(); return; }
-    toast('🏁 จบรอบที่ '+last.index+' — '+(last.winners||[]).map(w=>nameOf(S,w.memberId)).join(' · ')+' ชนะ','g');
+    if(popupCfg('Summary')===-1){           // Admin ปิดไว้ — แจ้งแค่ toast
+      toast('🏁 จบรอบที่ '+last.index+' — '+(last.winners||[]).map(w=>nameOf(S,w.memberId)).join(' · ')+' ชนะ','g');
+    }
+    else if(!busy){ UI.modal={k:'summary',round:last}; scheduleSummaryClose('Summary'); render(); return; }
+    else toast('🏁 จบรอบที่ '+last.index+' — '+(last.winners||[]).map(w=>nameOf(S,w.memberId)).join(' · ')+' ชนะ','g');
   }
 
   // 2) ขึ้นรอบลงเงินใหม่ที่ยังไม่เคยโชว์ → เปิดไพ่กลาง (2=เปิด 3 ใบ, 3=ใบที่ 4, 4=ใบที่ 5)
@@ -1712,7 +1727,10 @@ function maybePopups(){
     const shown = seenStreet[b.id] || 1;
     if(b.street > shown){
       seenStreet[b.id] = b.street;
-      if(!busy){ UI.modal={k:'reveal',street:b.street}; scheduleSummaryClose(); Sfx.chip(); render(); }
+      if(popupCfg('Reveal')===-1){          // Admin ปิดไว้ — แจ้งแค่ toast (ไพ่บนโต๊ะเปิดให้เห็นอยู่แล้ว)
+        toast('🃏 จบรอบลงเงินที่ '+(b.street-1)+' — เปิดไพ่กลางบนโต๊ะ','y');
+      }
+      else if(!busy){ UI.modal={k:'reveal',street:b.street}; scheduleSummaryClose('Reveal'); Sfx.chip(); render(); }
       else toast('🃏 จบรอบลงเงินที่ '+(b.street-1)+' — เปิดไพ่กลางได้','y');
     }
   } else if(b && !seenStreet[b.id]) seenStreet[b.id] = b.street;
@@ -2919,13 +2937,21 @@ function vSettings(){
     <div class="row"><span class="lbl">เสียงเตือนเมื่อถึงตาคุณ</span><span class="sp"></span>
       <button class="btn sec sm" data-act="sound">${Sfx.on?'🔔 เปิด':'🔕 ปิด'}</button></div>
     <div class="cap">มีเสียงและสั่นเตือนเมื่อ: ถึงตาคุณลงเดิมพัน · ถึงคิวลงกองกลาง · คุณชนะรอบ</div>
-    <div class="row"><span class="lbl">ปิดหน้าสรุปผู้ชนะอัตโนมัติ</span><span class="sp"></span>
-      <button class="btn sec sm" data-act="toggleSumAuto">${sumAuto?'✅ เปิด':'⬜ ปิด'}</button></div>
-    ${sumAuto?`<div class="row"><span class="lbl">ปิดหลังผ่านไป (วินาที)</span><span class="sp"></span>
-      <input id="s_sumsecs" value="${sumSecs}" inputmode="numeric" style="width:72px;text-align:center">
-      <button class="btn sec sm" data-act="saveSumSecs">บันทึก</button></div>`:''}
-    <div class="cap">ใช้กับหน้าสรุปผู้ชนะและหน้าเปิดไพ่ · ตั้งแยกของใครของมัน</div>
   </div>
+  ${adm?`<div class="card col"><b class="h2">🪟 Pop-up อัตโนมัติ (มีผลทุกเครื่องในวง)</b>
+    ${[['Reveal','🃏 ป๊อปอัพเปิดไพ่ (จบรอบลงเงิน)'],['Summary','🏆 กระดานผู้ชนะแต่ละรอบ']].map(([k,l])=>{
+      const v = popupCfg(k);
+      return `<div class="col" style="gap:5px">
+        <span class="lbl">${l}</span>
+        <div class="row" style="gap:6px;flex-wrap:wrap">
+          <button class="pill" data-act="setPopup" data-k="${k}" data-v="-1" style="${v===-1?'background:var(--danger);color:#fff':''}">🚫 ไม่แสดง</button>
+          <button class="pill" data-act="setPopup" data-k="${k}" data-v="0" style="${v===0?'background:var(--brand);color:#04140D':''}">📌 ค้างจนกดปิด</button>
+          <button class="pill" data-act="setPopup" data-k="${k}" data-v="t" style="${v>0?'background:var(--brand);color:#04140D':''}">⏱ ปิดเองใน</button>
+          <input id="s_pp${k}" value="${v>0?v:5}" inputmode="numeric" style="width:52px;text-align:center;padding:7px 4px">
+          <span class="cap">วินาที</span>
+        </div></div>`;}).join('')}
+    <div class="cap">🚫 ไม่แสดง = ทุกเครื่องจะเห็นแค่ข้อความแจ้งสั้นๆ แทน (ไพ่บนโต๊ะยังเปิดตามปกติ)</div>
+  </div>`:''}
   ${adm?`<button class="btn dgr" data-act="nav" data-s="settle">🏁 ปิดห้อง &amp; เคลียร์ยอด</button>`:''}
   <button class="btn ghost" data-act="leave">ออกจากห้อง (ไม่ลบข้อมูล)</button>`;
 }
@@ -3243,7 +3269,7 @@ function mReveal(street){
     <div class="cap" style="text-align:center">จบรอบลงเงินที่ ${street-1} แล้ว — เปิดไพ่กลางบนโต๊ะ แล้วเดิมพันรอบที่ ${street} ต่อ</div>
     <div class="cards">${cards}</div>
     <button class="btn" data-act="closeModal">เปิดแล้ว ไปเดิมพันต่อ</button>
-    ${autoCloseRow()}`, true);
+    ${autoCloseRow('Reveal')}`, true);
 }
 
 /** ผู้ชนะหลายคน → ให้ Admin เลือกว่าใครเริ่มรอบถัดไป */
@@ -3337,7 +3363,7 @@ function mSummary(r){
     </tbody></table>
     <button class="btn" data-act="closeModal">ปิด</button>
     ${isAdmin()?`<button class="btn gold" data-act="openRoundFromSummary">▶ เปิดรอบใหม่</button>`:''}
-    ${autoCloseRow()}`, true);
+    ${autoCloseRow('Summary')}`, true);
 }
 
 /* ============================================================
@@ -3349,6 +3375,14 @@ const A = {
     LS.set('pk:theme',UI.theme); render(); },
   back(){ UI.screen='landing'; render(); },
   toggleBal(){ hideBal=!hideBal; LS.set('pk:hidebal', hideBal?'1':'0'); render(); },
+  setPopup(d){
+    let v;
+    if(d.v==='t'){ v = Math.max(2, Math.min(60, parseInt($('#s_pp'+d.k).value)||5)); }
+    else v = Number(d.v);
+    const s={}; s['popup'+d.k]=v;
+    cmd({t:'SETTINGS_SET',settings:s});
+    toast(v===-1?'ปิดป๊อปอัพนี้แล้ว ทุกเครื่องจะเห็นแค่ข้อความแจ้ง':v===0?'ตั้งเป็นค้างจนกดปิดเอง':'ตั้งปิดอัตโนมัติใน '+v+' วินาที','g');
+  },
   toggleSumAuto(){ sumAuto=!sumAuto; LS.set('pk:sumauto', sumAuto?'1':'0'); render(); },
   /** ติ๊ก/ไม่ติ๊ก ปิดอัตโนมัติ เฉพาะป๊อปอัพที่เปิดอยู่ตอนนี้ (รอบหน้าติ๊กกลับมาเอง) */
   toggleAutoTick(){
