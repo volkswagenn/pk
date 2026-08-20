@@ -861,7 +861,8 @@ function validate(st, ev){
       if(ev.from===ev.to) return 'โอนให้ตัวเองไม่ได้';
       if(ev.amount<=0) return 'จำนวนเงินไม่ถูกต้อง';
       if(!w || w.balance < ev.amount) return 'เงินไม่พอ';
-      if(ev.by!==ev.from) return 'ต้องเป็นเจ้าของกระเป๋า';
+      // Admin สั่งชำระหนี้แทนได้ (ตอนปิดยอดก่อนออกจากวง) นอกนั้นต้องเป็นเจ้าของกระเป๋าเอง
+      if(ev.by!==ev.from && !(isAdmin(me_) && ev.kind==='DEBT_REPAY')) return 'ต้องเป็นเจ้าของกระเป๋า';
       return null;
     }
     case 'BORROW_REQUESTED': {
@@ -978,10 +979,35 @@ function validate(st, ev){
       if(ev.n<1||ev.n>20) return 'ที่นั่งต้องอยู่ระหว่าง 1–20';
       return null;
     }
+    case 'DEBT_WRITEOFF': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      const d = st.debts[ev.did];
+      if(!d) return 'ไม่พบรายการหนี้';
+      if(d.status!=='OPEN' || d.outstanding<=0) return 'หนี้รายการนี้ปิดไปแล้ว';
+      return null;
+    }
     case 'MEMBER_REMOVED': {
       if(!isAdmin(me_)) return 'เฉพาะ Admin';
       const w = st.wallets[ev.mid];
       if(w && w.balance>0) return 'ผู้เล่นยังมีเงิน ฿'+fmtS(w.balance)+' ต้องเคลียร์ก่อน';
+      // ห้ามออกทั้งที่ยังมีหนี้พันอยู่ — ทั้งฝั่งติดคนอื่นและฝั่งรอรับคืน
+      const owes = Object.values(st.debts).filter(d=>d.status==='OPEN'&&d.outstanding>0&&d.debtor===ev.mid)
+                    .reduce((a,d)=>a+d.outstanding,0);
+      const lent = Object.values(st.debts).filter(d=>d.status==='OPEN'&&d.outstanding>0&&d.creditor===ev.mid)
+                    .reduce((a,d)=>a+d.outstanding,0);
+      if(owes>0) return 'ยังติดหนี้คนอื่น ฿'+fmtS(owes)+' — ให้จ่ายคืนหรือเคลียร์นอกวงก่อน';
+      if(lent>0) return 'ยังมีเงินให้ยืมค้าง ฿'+fmtS(lent)+' — ให้ลูกหนี้คืนหรือเคลียร์นอกวงก่อน';
+      // ถ้ายังอยู่กลางมือที่เปิดอยู่ ต้องหมอบ/พักก่อน (เงินที่ลงไปแล้วอยู่ในกอง)
+      const r = st.curRound;
+      if(r && r.status==='OPEN'){ const s=seatOf(r,ev.mid);
+        if(s && s.state==='IN' && paidTotal(s)>0) return 'ยังมีเงินอยู่ในกองรอบนี้ ฿'+fmtS(paidTotal(s))+' — รอจบมือหรือยกเลิกรอบก่อน'; }
+      return null;
+    }
+    /* Admin เคลียร์หนี้ทุกคู่ของคนหนึ่งคนทีเดียว (ตกลงจ่ายกันนอกวงแล้ว) — ใช้ตอนพาออกจากวง */
+    case 'ADMIN_DEBT_CLEAR': {
+      if(!isAdmin(me_)) return 'เฉพาะ Admin';
+      const any = Object.values(st.debts).some(d=>d.status==='OPEN'&&d.outstanding>0&&(d.debtor===ev.mid||d.creditor===ev.mid));
+      if(!any) return 'คนนี้ไม่มีหนี้ค้างอยู่';
       return null;
     }
     case 'SETTINGS_SET': return isAdmin(me_)?null:'เฉพาะ Admin';
@@ -1285,8 +1311,26 @@ function apply(st, ev){
     case 'MEMBER_REMOVED': {
       const m=st.members[ev.mid]; if(m){ m.status='LEFT'; m.seatNo=null; m.role='SPECTATOR'; }
       if(st.curRound&&st.curRound.status==='OPEN'){ const s=seatOf(st.curRound,ev.mid); if(s&&s.state==='IN') s.state='SITTING_OUT'; }
-      mlog(st,ev,ev.mid,'ออกจากวง', ev.by===ev.mid?'ออกเอง':'Admin เอาออก');
+      mlog(st,ev,ev.mid,'ออกจากวง', (ev.by===ev.mid?'ออกเอง':'Admin เอาออก')+' · ปิดยอดครบแล้ว');
       feed(st,ev,'🚪',(m?m.name:'ผู้เล่น')+' ออกจากวง','n');
+      break;
+    }
+    case 'ADMIN_DEBT_CLEAR': {
+      // เคลียร์หนี้ทุกใบที่พันกับคนนี้ รวบยอดเป็นรายคู่ลงบันทึก "เคลียร์นอกวง"
+      const pairs = {};
+      Object.values(st.debts).forEach(d=>{
+        if(d.status==='OPEN'&&d.outstanding>0&&(d.debtor===ev.mid||d.creditor===ev.mid)){
+          const key=d.debtor+'|'+d.creditor;
+          pairs[key]=(pairs[key]||0)+d.outstanding;
+          d.outstanding=0; d.status='SETTLED'; d.clearedOutside=true;
+        }
+      });
+      let tot=0;
+      Object.keys(pairs).forEach(key=>{
+        const [debtor,creditor]=key.split('|'); tot+=pairs[key];
+        st.clearedOutside.push({debtor,creditor,amount:pairs[key],at:ev.at,approvedBy:ev.by});
+      });
+      feed(st,ev,'🧾','Admin เคลียร์หนี้ทั้งหมดของ '+nameOf(st,ev.mid)+' ฿'+fmtS(tot)+' (ตกลงจ่ายกันนอกวงแล้ว)','y');
       break;
     }
     case 'SETTINGS_SET': Object.assign(st.room.settings, ev.settings); if(ev.roomName) st.room.name=ev.roomName; break;
@@ -3135,6 +3179,37 @@ function renderModal(){
       }catch(e){ const box=document.getElementById('ppqrbox'); if(box) box.innerHTML='<span class="cap out">สร้าง QR ไม่สำเร็จ: '+esc(e.message)+'</span>'; }
     },260);
   }
+  else if(m.k==='cashout'){
+    const mid = m.mid, mm = S.members[mid], w = S.wallets[mid]||{balance:0};
+    const dbt = debtOf(mid);
+    const inPot = (()=>{ const r=S.curRound; if(!r||r.status!=='OPEN') return 0;
+      const s=seatOf(r,mid); return (s&&s.state==='IN')?paidTotal(s):0; })();
+    const step = (ok,label,detail)=>`<div class="row" style="gap:8px;align-items:flex-start">
+      <span style="font-size:17px">${ok?'✅':'⬜'}</span>
+      <div class="col" style="gap:2px"><b style="font:600 13px/1.3 var(--f)">${label}</b>
+        ${detail?`<span class="cap">${detail}</span>`:''}</div></div>`;
+    const allClear = !dbt.owesTotal && !dbt.lentTotal && !inPot && w.balance<=0;
+    html = mWrap(`
+      <b class="h1" style="text-align:center">🚪 พาออกจากวง — ${esc(mm.name)}</b>
+      <div class="cap" style="text-align:center">ต้องเคลียร์ให้ครบทุกข้อก่อน คนออกถึงจะตัวเบา ไม่มีอะไรพันกับวง</div>
+      <div class="card col" style="gap:10px">
+        ${step(!inPot,'ไม่มีเงินค้างในกองรอบนี้', inPot?'ค้างอยู่ ฿'+fmtS(inPot)+' — รอจบมือ หรือยกเลิกรอบ':'')}
+        ${step(!dbt.owesTotal,'หนี้ที่ติดคนอื่น = 0',
+          dbt.owesTotal?('ยังติด ฿'+fmtS(dbt.owesTotal)+' — '+dbt.owes.map(x=>esc(nameOf(S,x.id))+' ฿'+fmtS(x.amount)).join(' · ')):'')}
+        ${step(!dbt.lentTotal,'เงินให้ยืมได้คืนครบ',
+          dbt.lentTotal?('รอรับ ฿'+fmtS(dbt.lentTotal)+' จาก '+dbt.lent.map(x=>esc(nameOf(S,x.id))+' ฿'+fmtS(x.amount)).join(' · ')):'')}
+        ${step(w.balance<=0,'แลกชิพคืน BANK แล้ว',
+          w.balance>0?('เหลือ ฿'+fmtS(w.balance)+' — คืนแล้ว Admin จ่ายเงินสดจริงให้ตามยอดนี้'):'')}
+      </div>
+      ${(dbt.owesTotal||dbt.lentTotal)?`
+        <div class="cap">ทางเลือกเคลียร์หนี้: ให้คู่กรณีโอนชิพคืนกันในระบบ · หรือถ้าตกลงจ่ายเงินสดกันแล้ว กดปุ่มนี้</div>
+        <button class="btn sec" data-act="adminDebtClear" data-mid="${mid}">🧾 เคลียร์หนี้ทุกคู่ (จ่ายกันนอกวงแล้ว)</button>`:''}
+      ${(!dbt.owesTotal&&!dbt.lentTotal&&!inPot&&w.balance>0)?`
+        <button class="btn" data-act="cashoutReturn" data-mid="${mid}">💵 แลกชิพคืน ฿${fmtS(w.balance)} (Admin จ่ายเงินสดจริง)</button>`:''}
+      ${allClear?`<button class="btn dgr" data-act="cashoutRemove" data-mid="${mid}">🚪 เอา ${esc(mm.name)} ออกจากวง</button>`
+                :`<button class="btn" disabled>ยังออกไม่ได้ — เคลียร์ข้อที่ค้างก่อน</button>`}
+      <button class="btn ghost" data-act="closeModal">ปิด</button>`);
+  }
   else if(m.k==='adminQuick'){
     const r = S.curRound, pend = pendingForAdmin().length;
     html = mWrap(`
@@ -3293,9 +3368,9 @@ function mManage(mid){
     ${meM()&&meM().role==='ADMIN'&&m.status==='PLAYING'&&mid!==me.id
       ? `<div class="g2">
            <button class="btn sec" data-act="makeAdmin" data-mid="${mid}">👑 โอนสิทธิ์ Admin</button>
-           <button class="btn ghost" data-act="removeMember" data-mid="${mid}">🚪 เอาออกจากวง</button>
+           <button class="btn ghost" data-act="cashout" data-mid="${mid}">🚪 เอาออกจากวง</button>
          </div>`
-      : `<button class="btn ghost" data-act="removeMember" data-mid="${mid}">🚪 เอา ${esc(m.name)} ออกจากวง</button>`}`);
+      : `<button class="btn ghost" data-act="cashout" data-mid="${mid}">🚪 เอา ${esc(m.name)} ออกจากวง</button>`}`);
 }
 
 function mMore(){
@@ -3673,6 +3748,22 @@ const A = {
       ? await cmd({t:'RETURN_TO_BANK',mid:d.mid,amount:a,note:'Admin คืนเข้า BANK'})
       : await cmd({t:'ISSUE',mid:d.mid,amount:a,kind:'TOPUP_GRANT',note:'Admin เติมให้'});
     if(ok) A.closeModal(); },
+  /* พาออกจากวง — เปิดเช็คลิสต์ 3 ขั้น: หนี้ติด → หนี้รอรับ → คืนชิพ → เอาออก */
+  cashout(d){ UI.modal={k:'cashout',mid:d.mid}; render(); },
+  adminDebtClear(d){
+    UI.modal={k:'confirm',title:'🧾 เคลียร์หนี้ทั้งหมดของ '+nameOf(S,d.mid)+'?',
+      text:'ยืนยันว่าคู่กรณีทุกคนตกลงจ่ายกันนอกวง (เงินสด/พร้อมเพย์) เรียบร้อยแล้ว — ยอดหนี้ทุกใบของคนนี้จะถูกลบและบันทึกในสรุปเคลียร์นอกวง',
+      ok:'เคลียร์ทั้งหมด',danger:true,
+      fn:async()=>{ if(await cmd({t:'ADMIN_DEBT_CLEAR',mid:d.mid})){ UI.modal={k:'cashout',mid:d.mid}; render(); } }};
+    render(); },
+  async cashoutReturn(d){
+    const w = S.wallets[d.mid]||{balance:0};
+    if(w.balance>0 && !await cmd({t:'RETURN_TO_BANK',mid:d.mid,amount:w.balance,note:'แลกชิพคืน — ออกจากวง'})) return;
+    UI.modal={k:'cashout',mid:d.mid}; render();
+  },
+  async cashoutRemove(d){
+    if(await cmd({t:'MEMBER_REMOVED',mid:d.mid})){ UI.modal=null; toast('พาออกจากวงเรียบร้อย','g'); render(); }
+  },
   removeMember(d){ UI.modal={k:'confirm',title:'เอาผู้เล่นออกจากวง?',text:'ต้องเคลียร์เงินในกระเป๋าให้เป็น 0 ก่อน',ok:'เอาออก',danger:true,
     fn:()=>cmd({t:'MEMBER_REMOVED',mid:d.mid})}; render(); },
 
