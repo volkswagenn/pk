@@ -1030,7 +1030,7 @@ function apply(st, ev){
   switch(ev.t){
     case 'ROOM_CREATED': {
       st.room = {code:ev.code,name:ev.name,ownerId:ev.by,status:'ACTIVE',maxSeats:ev.maxSeats,
-                 settings:ev.settings,createdAt:ev.at};
+                 settings:{...ev.settings},createdAt:ev.at};   // สำเนา — กัน SETTINGS_SET ย้อนไปแก้ event ต้นฉบับ
       st.members[ev.by] = {id:ev.by,name:ev.name2,role:'ADMIN',seatNo:1,status:'PLAYING',color:AVCOLORS[0],pp:ev.pp||null};
       ensureWallet(st,ev.by);
       feed(st,ev,'🏠','สร้างห้อง "'+ev.name+'"','n');
@@ -1547,6 +1547,14 @@ function refresh(){
   notifyMyTurn(prev);
   updateTurnNag();
   if(firstLoad) initPopupMarks(); else maybePopups();
+  // ⛔ สมการเงินเพิ่งแตก → เด้งเตือนทุกเครื่องทันที (หน้า vBroken จะยึดจอเองจาก render)
+  if(S.broken && (!prev.broken || firstLoad!==true && !prev.broken)){
+    if(!prev.broken){
+      UI.modal=null;                                   // เคลียร์ป๊อปอัพอื่นให้เห็นหน้าเตือนเต็มจอ
+      Sfx.turn && Sfx.turn();
+      toast('⛔ ยอดเงินในระบบไม่ตรง ส่วนต่าง '+(S.broken.diff>0?'+':'')+fmtS(S.broken.diff)+' — ห้องถูกระงับชั่วคราว','r');
+    }
+  }
   // 👑 เพิ่งได้เป็น Admin → เด้ง pop-up แจ้งเจ้าตัวให้รู้ชัดๆ
   if(!firstLoad && S.adminChangedAt && S.adminChangedAt!==prev.adminChangedAt
      && S.room && S.room.ownerId===me.id && !UI.modal){
@@ -1821,7 +1829,7 @@ function render(){
   else if(UI.screen==='join') html = vJoin();
   else if(!S.room) html = vLanding();
   else if(S.room.status==='CLOSED' && UI.screen!=='history' && UI.screen!=='settle') html = vClosed();
-  else if(S.broken) html = vBroken();
+  else if(S.broken && UI.screen!=='history') html = vBroken();   // เปิดหน้าประวัติได้ระหว่างตรวจสอบ
   else html = vRoom();
   // วาดใหม่เฉพาะตอนเนื้อหาเปลี่ยนจริง — กันจอกระตุกและอนิเมชันรีสตาร์ททุกครั้งที่กดปุ่ม
   if(html !== _lastAppHtml){
@@ -3082,7 +3090,37 @@ function settleSuggest(){
     ${out.map(o=>`<span class="cap">• ${esc(o)}</span>`).join('')}</div>`:'';
 }
 
+/** ไล่ตรวจสมการเงินโดย replay ทุกเหตุการณ์ผ่าน engine จริง (validate+apply ตัวเดียวกับระบบ)
+ *  เช็ค Σกระเป๋า+กอง เทียบ เบิกสุทธิ หลัง "ทุกเหตุการณ์" — จับได้แม้ความเพี้ยนเกิดนอกสมุดบัญชี
+ *  คืน perSeq (ค่าตรวจ ณ ตอนธุรกรรมแต่ละลำดับเพิ่งเกิด ใช้ใน CSV) + firstBad {seq, evType} */
+function auditLedger(){
+  const st = blankState(); st.rejected = [];
+  const perSeq = {}; let firstBad = null;
+  const roundPots = s => s.rounds.reduce((a,r)=>a+r.pot,0);   // นับกองทุกใบ ไม่ใช่แค่ curRound
+  for(const ev of Store.events){
+    const err = validate(st, ev);
+    if(!err){ try{ apply(st, ev); }catch(e){} }
+    const lhs = sumWallets(st) + roundPots(st);
+    const rhs = st.bank.issued - st.bank.returned;
+    const diff = lhs - rhs;
+    if(!(st.seq in perSeq)) perSeq[st.seq] = {lhs, rhs, diff};   // ค่าทันทีหลังธุรกรรมลำดับนี้เกิด
+    if(diff!==0 && firstBad===null) firstBad = {seq: st.seq, evType: ev.t};
+  }
+  return {perSeq, firstBad,
+    ledgerFinal: perSeq[Object.keys(perSeq).map(Number).sort((a,b)=>a-b).pop()] || {lhs:0,rhs:0,diff:0}};
+}
+
 function vBroken(){
+  const au = auditLedger();
+  let where;
+  if(au.firstBad)
+    where = `เริ่มเพี้ยนช่วง<b>ธุรกรรมลำดับ #${au.firstBad.seq}</b> (เหตุการณ์: ${au.firstBad.evType})
+             — เปิดไฟล์ CSV ตาราง "รายการธุรกรรมทั้งหมด" ไล่คอลัมน์ <b>"ส่วนต่าง (ตรวจสมการ)"</b>
+             แถวแรกที่ไม่เป็น 0 คือลำดับ ${au.firstBad.seq} ตรวจแถวนั้นและเหตุการณ์เวลาใกล้เคียง`;
+  else
+    where = `การ replay ทั้งกระดานไม่พบจุดแตก — ความเพี้ยนน่าจะมาจากข้อมูลระหว่างเครื่องไม่ตรงกัน
+             ลองกดปุ่มซิงก์ (มุมขวาบน) ดึงข้อมูลล่าสุด แล้วเทียบ CSV จากเครื่อง Admin กับเครื่องอื่น`;
+  const r = S.curRound, canVoid = isAdmin() && r && r.status!=='SETTLED' && r.status!=='VOIDED';
   return `<div class="hdr"><b>⛔ ยอดเงินไม่ตรง</b></div>
   <div class="body"><div class="card col" style="border-color:var(--danger)">
     <div class="money out" style="text-align:center">⛔</div>
@@ -3090,8 +3128,15 @@ function vBroken(){
     <div class="row"><span class="lbl">เงินในระบบ</span><span class="sp"></span><b class="num">฿${fmtS(S.broken.lhs)}</b></div>
     <div class="row"><span class="lbl">เบิกจาก BANK</span><span class="sp"></span><b class="num">฿${fmtS(S.broken.rhs)}</b></div>
     <div class="row"><span class="lbl">ส่วนต่าง</span><span class="sp"></span><b class="num out">${S.broken.diff>0?'+':''}${fmtS(S.broken.diff)}</b></div>
-    <div class="ban r">ห้องถูกระงับชั่วคราว ทำธุรกรรมไม่ได้จนกว่าจะตรวจสอบ</div>
-    <button class="btn sec" data-act="nav" data-s="history">ตรวจสอบย้อนหลัง</button>
+    <div class="ban r">ห้องถูกระงับชั่วคราว — ทุกคนเห็นหน้านี้เหมือนกัน รอ Admin จัดการ</div>
+    <div class="card col" style="gap:5px;background:var(--bg-inset)">
+      <b class="lbl">🔎 ตำแหน่งที่น่าจะผิด</b>
+      <div class="cap" style="line-height:1.55">${where}</div>
+    </div>
+    <button class="btn" data-act="exportCsv">⇩ ดาวน์โหลด CSV (มีคอลัมน์ตรวจสมการรายแถว)</button>
+    ${canVoid?`<button class="btn dgr" data-act="voidRoundBroken">↩️ คืนเงินผู้เล่นทุกคนในตานี้ (ยกเลิกรอบ)</button>`:''}
+    ${isAdmin()?'':'<div class="cap" style="text-align:center">ปุ่มคืนเงิน/ยกเลิกรอบ อยู่ที่เครื่อง Admin</div>'}
+    <button class="btn sec" data-act="nav" data-s="history">ตรวจสอบย้อนหลังในแอป</button>
   </div></div>`;
 }
 function vClosed(){
@@ -3528,6 +3573,11 @@ const A = {
   back(){ UI.screen='landing'; render(); },
   toggleBal(){ hideBal=!hideBal; LS.set('pk:hidebal', hideBal?'1':'0'); render(); },
   plSort(d){ UI.form.plSort=d.v; render(); },
+  voidRoundBroken(){
+    UI.modal={k:'confirm',title:'↩️ คืนเงินทุกคนในตานี้?',
+      text:'ยกเลิกรอบปัจจุบัน — เงินกองกลางและเงินที่ลงไว้ทุกรอบลงเงินของมือนี้ จะคืนกลับกระเป๋าทุกคนเต็มจำนวน แล้วค่อยไล่หาต้นเหตุจาก CSV',
+      ok:'คืนเงินทุกคน',danger:true,
+      fn:()=>cmd({t:'ROUND_VOID'})}; render(); },
   setPopup(d){
     let v;
     if(d.v==='t'){ v = Math.max(2, Math.min(60, parseInt($('#s_pp'+d.k).value)||5)); }
@@ -3819,9 +3869,44 @@ const A = {
     const rows=[];
     const sec=(title,head)=>{ if(rows.length) rows.push([]); rows.push(['### '+title]); rows.push(head); };
 
-    /* 1) ธุรกรรมทั้งหมด */
-    sec('รายการธุรกรรมทั้งหมด', ['ลำดับ','เวลา','ประเภท','จาก','ไป','จำนวน(บาท)','หมายเหตุ']);
-    S.txs.forEach(t=>rows.push([t.seq,D(t.at),TX_LABEL[t.type]||t.type,nm(t.from),nm(t.to),T(t.amount),t.note]));
+    /* 1) ธุรกรรมทั้งหมด — พร้อมคอลัมน์ตรวจสมการรายแถว (แถวแรกที่ "ส่วนต่าง" ไม่เป็น 0 คือจุดที่เริ่มผิด) */
+    const au = auditLedger();
+    sec('รายการธุรกรรมทั้งหมด', ['ลำดับ','เวลา','ประเภท','จาก','ไป','จำนวน(บาท)','หมายเหตุ',
+      'Σกระเป๋า+กอง หลังรายการ','เบิกสุทธิ หลังรายการ','ส่วนต่าง (ตรวจสมการ)']);
+    S.txs.forEach(t=>{ const a=au.perSeq[t.seq]||{lhs:0,rhs:0,diff:0};
+      rows.push([t.seq,D(t.at),TX_LABEL[t.type]||t.type,nm(t.from),nm(t.to),T(t.amount),t.note,
+        T(a.lhs),T(a.rhs),a.diff===0?'0':('⚠ '+T(a.diff))]); });
+    if(au.firstBad) rows.push(['','','','','','','⚠ สมการเริ่มเพี้ยนช่วงลำดับ '+au.firstBad.seq+' (เหตุการณ์ '+au.firstBad.evType+') — ตรวจแถวนั้นและเวลาใกล้เคียง','','','']);
+
+    /* 1b) รอบทั้งหมด */
+    sec('รอบทั้งหมด', ['รอบที่','สถานะ','ลงกองกลาง/คน(บาท)','เงินกองรวม(บาท)','ผู้ชนะ','ผู้เริ่มรอบถัดไป','ลำดับการลง (notation)']);
+    S.rounds.forEach(r=>rows.push([r.index, r.status==='SETTLED'?'จบแล้ว':r.status==='VOIDED'?'ยกเลิก':r.status,
+      T(r.anteAmount||0), T(r.totalIn||0),
+      (r.winners||[]).map(w=>nameOf(S,w.memberId)+' '+T(w.amount)).join(' / ')||'—',
+      r.startNextId?nameOf(S,r.startNextId):'—',
+      [(r.streets||[]).map(x=>'รอบลงเงิน '+x.index+': '+x.note).join(' | '), actionNotation(r)].filter(Boolean).join(' | ')]));
+
+    /* 1c) เคลียร์เงินนอกวง */
+    sec('เคลียร์เงินนอกวง (จ่ายกันเองแล้ว Admin อนุมัติลบยอด)', ['เวลา','ลูกหนี้จ่าย','เจ้าหนี้รับ','ยอด(บาท)','อนุมัติโดย']);
+    (S.clearedOutside||[]).forEach(c=>rows.push([D(c.at),nameOf(S,c.debtor),nameOf(S,c.creditor),T(c.amount),nameOf(S,c.approvedBy)]));
+    if(!(S.clearedOutside||[]).length) rows.push(['(ไม่มี)']);
+
+    /* 1d) คำขอทั้งหมด */
+    sec('คำขอทั้งหมด (เข้าเล่น/เติมเงิน/ยืม/เคลียร์หนี้)', ['เวลา','ชนิด','ผู้ขอ','จาก','ถึง','ยอด(บาท)','สถานะ','ผู้อนุมัติ/เหตุผล']);
+    Object.values(S.requests).sort((a,b)=>a.at-b.at).forEach(q=>rows.push([D(q.at),
+      {JOIN:'ขอเข้าเล่น',TOPUP:'ขอเติมเงิน',BORROW:'ขอยืมเงิน',DEBT_CLEAR:'ขอเคลียร์หนี้นอกวง'}[q.type]||q.type,
+      nameOf(S,q.by), q.from?nameOf(S,q.from):'—', q.to?nameOf(S,q.to):'—', T(q.amount||0),
+      {PENDING:'รออนุมัติ',APPROVED:'อนุมัติแล้ว',REJECTED:'ปฏิเสธ',CANCELLED:'ยกเลิก',EXPIRED:'หมดอายุ'}[q.status]||q.status,
+      q.by2?nameOf(S,q.by2):(q.reason||'—')]));
+
+    /* 1e) เหตุการณ์ทั้งหมดในห้อง */
+    sec('เหตุการณ์ทั้งหมดในห้อง', ['เวลา','เหตุการณ์']);
+    (S.feed||[]).forEach(f=>rows.push([D(f.at), f.icon+' '+f.text]));
+
+    /* 1f) รายการที่ระบบปฏิเสธ */
+    sec('รายการที่ระบบปฏิเสธ (กดแล้วไม่ผ่านกติกา)', ['ชนิดเหตุการณ์','โดย','เหตุผลที่ปฏิเสธ']);
+    (S.rejected||[]).forEach(x=>rows.push([x.ev.t, x.ev.by?nameOf(S,x.ev.by):'—', x.err]));
+    if(!(S.rejected||[]).length) rows.push(['(ไม่มี)']);
 
     /* 2) เข้า-ออกวง */
     sec('ประวัติเข้า-ออกวง', ['เวลา','ผู้เล่น','เหตุการณ์','รายละเอียด']);
