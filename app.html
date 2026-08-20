@@ -988,7 +988,7 @@ function apply(st, ev){
     case 'ROOM_CREATED': {
       st.room = {code:ev.code,name:ev.name,ownerId:ev.by,status:'ACTIVE',maxSeats:ev.maxSeats,
                  settings:ev.settings,createdAt:ev.at};
-      st.members[ev.by] = {id:ev.by,name:ev.name2,role:'ADMIN',seatNo:1,status:'PLAYING',color:AVCOLORS[0]};
+      st.members[ev.by] = {id:ev.by,name:ev.name2,role:'ADMIN',seatNo:1,status:'PLAYING',color:AVCOLORS[0],pp:ev.pp||null};
       ensureWallet(st,ev.by);
       feed(st,ev,'🏠','สร้างห้อง "'+ev.name+'"','n');
       break;
@@ -1794,7 +1794,10 @@ function vLanding(){
     <div class="card col">
       <div class="lbl">ชื่อของคุณ</div>
       <input id="myname" placeholder="เช่น สมชาย" value="${esc(me.name)}" maxlength="16">
-      <div class="cap">ชื่อนี้จะแสดงให้ทุกคนในห้องเห็น</div>
+      <div class="cap">ชื่อนี้จะแสดงให้ทุกคนในห้องเห็น — ห้ามเป็นตัวเลขล้วน</div>
+      <div class="lbl" style="margin-top:4px">พร้อมเพย์ของคุณ</div>
+      <input id="mypp" placeholder="เบอร์มือถือ 10 หลัก เช่น 0812345678" maxlength="13" inputmode="numeric" value="${esc(me.pp||'')}">
+      <div class="cap">ใช้ตอนเพื่อนสแกน QR โอนคืนหนี้ให้คุณ</div>
     </div>
     <button class="btn big" data-act="goCreate">🏠 สร้างห้องใหม่ (คุณเป็น Admin)</button>
     <button class="btn big sec" data-act="goJoin">🚪 เข้าห้องด้วยรหัส</button>
@@ -2815,19 +2818,21 @@ function vSettings(){
   const s = S.room.settings, adm = isAdmin();
   const m = meM();
   const myIcon = m ? m.icon : null;
-  const iconCard = (m && (isPlayer()||adm) && !adm) ? `
-  <div class="card col"><b class="h2">🎭 ชื่อและไอคอนของฉัน</b>
+  /* ชื่อ+พร้อมเพย์: ทุกคนเห็นรวม Admin · ตัวเลือกไอคอน: เฉพาะผู้เล่น (Admin เป็นมงกุฎถาวร) */
+  const iconCard = m ? `
+  <div class="card col"><b class="h2">🎭 ชื่อ${adm?'':'และไอคอน'}ของฉัน</b>
     <div class="row"><input id="s_myname" value="${esc(m.name)}" maxlength="16" placeholder="ชื่อผู้เล่น">
       <button class="btn sec sm" data-act="saveMyName" style="flex:none">บันทึกชื่อ</button></div>
     ${/^[\d\s]+$/.test(m.name)?'<div class="ban y">⚠ ชื่อของคุณเป็นตัวเลข — น่าจะเผลอใส่รหัสห้องมา เปลี่ยนเป็นชื่อจริงได้ตรงนี้</div>':''}
     <div class="row"><input id="s_mypp" value="${esc(m.pp||'')}" maxlength="13" inputmode="numeric" placeholder="พร้อมเพย์ (เบอร์ 10 หลัก)">
       <button class="btn sec sm" data-act="saveMyPp" style="flex:none">บันทึก</button></div>
-    ${!m.pp?'<div class="cap">ใส่พร้อมเพย์ไว้ เพื่อนที่ยืมเงินคุณจะได้สแกน QR จ่ายคืนได้</div>':''}
-    <div class="cap">เลือกตัวแทนของคุณ ทุกคนในวงจะเห็นแบบเดียวกัน</div>
+    ${m.pp?`<div class="cap">📱 พร้อมเพย์ปัจจุบัน: <b class="num" style="color:var(--in)">${m.pp.length===10?m.pp.replace(/(\d{3})(\d{3})(\d{4})/,'$1-$2-$3'):m.pp}</b></div>`
+          :'<div class="ban y">⚠ ยังไม่ได้ใส่พร้อมเพย์ — เพื่อนที่ยืมเงินคุณจะสแกน QR จ่ายคืนไม่ได้</div>'}
+    ${adm?'':`<div class="cap">เลือกตัวแทนของคุณ ทุกคนในวงจะเห็นแบบเดียวกัน</div>
     <div class="iconpick">
       <button class="ic ${!myIcon?'on':''}" data-act="setIcon" data-v="">${esc(initials(m.name))}</button>
       ${ICON_CHOICES.map(i=>`<button class="ic ${myIcon===i?'on':''}" data-act="setIcon" data-v="${i}">${i}</button>`).join('')}
-    </div>
+    </div>`}
   </div>` : '';
   const adminXfer = adm && meM().role==='ADMIN' ? `
   <div class="card col"><b class="h2">👑 โอนสิทธิ์ Admin</b>
@@ -3278,10 +3283,16 @@ const A = {
   modal(d){ UI.modal={k:d.m,mid:d.mid}; UI.form.amt=''; UI.form.to=d.mid||null; UI.form.mmode='add'; render(); },
   openPend(){ UI.screen='approvals'; render(); },
 
-  goCreate(){ const n=$('#myname').value.trim(); const err=validName(n); if(err) return toast(err,'r');
-    me.name=n; Me.save(me); UI.screen='create'; UI.form={seats:5,start:1000,ante:40,multiStreet:true,chips:'20,40,60,80,100',loans:true,strict:true,autoClose:true,autoGrant:true}; render(); },
-  goJoin(){ const n=$('#myname').value.trim(); const err=validName(n); if(err) return toast(err,'r');
-    me.name=n; Me.save(me); UI.screen='join'; render(); },
+  _grabNamePp(){
+    const n=$('#myname').value.trim(); const err=validName(n); if(err){ toast(err,'r'); return false; }
+    const pp=$('#mypp').value.replace(/\D/g,'');
+    if(!/^\d{10}$|^\d{13}$/.test(pp)){ toast('พร้อมเพย์ต้องเป็นเบอร์ 10 หลัก หรือเลขบัตร 13 หลัก','r'); return false; }
+    me.name=n; me.pp=pp; Me.save(me); return true;
+  },
+  goCreate(){ if(!A._grabNamePp()) return;
+    UI.screen='create'; UI.form={seats:5,start:1000,ante:40,multiStreet:true,chips:'20,40,60,80,100',loans:true,strict:true,autoClose:true,autoGrant:true}; render(); },
+  goJoin(){ if(!A._grabNamePp()) return;
+    UI.screen='join'; render(); },
   seats(d){ UI.form.seats = Math.max(1,Math.min(20,(UI.form.seats||5)+Number(d.d))); render(); },
   setStart(d){ UI.form.start = Number(d.v); render(); },
   setAnte(d){ UI.form.ante = Number(d.v); render(); },
@@ -3293,7 +3304,7 @@ const A = {
     const code = roomCode();
     const ante = B(parseAmt($('#f_ante').value)||0);
     try{ await Store.open(code, Store.mode); }catch(e){ return toast(e.message,'r'); }
-    await Store.append({t:'ROOM_CREATED',code,name,name2:me.name,maxSeats:UI.form.seats||5,
+    await Store.append({t:'ROOM_CREATED',code,name,name2:me.name,pp:me.pp||null,maxSeats:UI.form.seats||5,
       settings:{startAmount:start, anteAmount:ante, chips:chips.length?chips:[20,40,60,80,100],
         loans:$('#f_loans').checked, strict:$('#f_strict').checked,
         autoClose:$('#f_autoclose').checked, multiStreet:$('#f_multi').checked, autoGrant:$('#f_auto').checked}});
@@ -3656,7 +3667,12 @@ if(sbCfg()) Store.mode='cloud';
   try{
     await Store.open(last.code, last.mode || Store.mode);
     S = reduce(Store.events);
-    if(S.room){ UI.screen='home'; UI.tab='control'; refresh(); return; }
+    if(S.room){
+      // ซิงก์พร้อมเพย์ที่ตั้งไว้ในเครื่อง เข้ากับห้อง (เผื่อเข้าห้องก่อนยุคมีช่องพร้อมเพย์)
+      const meMem = S.members[me.id];
+      if(meMem && me.pp && meMem.pp!==me.pp) await Store.append({t:'MEMBER_PP',mid:me.id,pp:me.pp});
+      UI.screen='home'; UI.tab='control'; refresh(); return;
+    }
     toast('ไม่พบห้อง '+last.code+' แล้ว','y');
   }catch(e){
     toast('กลับเข้าห้องเดิมไม่สำเร็จ: '+e.message,'r');
