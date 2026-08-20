@@ -1657,16 +1657,43 @@ function autoCloseRow(){
    มักได้ event มาเป็นชุด (poll ทุก 4 วิ) แล้วข้ามจังหวะ SETTLED ไปเลย */
 let seenSettled = null, seenStreet = {};
 
+let seenReqs = null;      // id คำขอที่เคยแจ้งเตือนไปแล้ว
+
 /** ตั้งจุดเริ่มตอนเพิ่งเข้าห้อง — กันเด้งสรุปของรอบเก่าย้อนหลัง */
 function initPopupMarks(){
   const done = S.rounds.filter(x=>x.status==='SETTLED');
   seenSettled = done.length ? done[done.length-1].id : null;
   seenStreet = {};
   if(S.curRound) seenStreet[S.curRound.id] = S.curRound.street;
+  seenReqs = new Set(Object.keys(S.requests||{}));   // ของเดิมถือว่าเห็นแล้ว
+}
+
+/** มีคำขอใหม่ที่รอ "ฉัน" ตอบ → เด้งป๊อปอัพ + เสียง (เดิมมีแค่ตัวเลขเล็กๆ บนแท็บ คนไม่ทันเห็น) */
+function maybeRequestPopup(){
+  if(!seenReqs) seenReqs = new Set();
+  const mine  = pendingForMe();                       // คำขอที่ชี้มาที่เราโดยตรง เช่น ขอยืมเงิน
+  const admin = isAdmin() ? pendingForAdmin() : [];    // งานอนุมัติของ Admin
+  const fresh = [...mine, ...admin].filter(r=>!seenReqs.has(r.id));
+  if(!fresh.length) return false;
+  fresh.forEach(r=>seenReqs.add(r.id));
+
+  const direct = fresh.find(r=>mine.some(m=>m.id===r.id));
+  if(direct){
+    Sfx.myTurn();
+    const busy = UI.modal && UI.modal.k!=='summary' && UI.modal.k!=='reveal';
+    if(!busy){ UI.modal={k:'incoming',rid:direct.id}; render(); return true; }
+    toast('🔔 '+nameOf(S,direct.to)+' ขอยืมเงินคุณ ฿'+fmtS(direct.amount)+' — ไปที่แท็บอนุมัติ','y');
+    return false;
+  }
+  // งานของ Admin: เสียง + แจ้งเตือน ไม่ปิดจอ (มีบ่อย)
+  Sfx.ante();
+  toast('🔔 มีคำขอรออนุมัติ '+fresh.length+' รายการ','y');
+  return false;
 }
 
 function maybePopups(){
   if(UI.screen==='landing' || UI.screen==='boot') return;
+  if(maybeRequestPopup()) return;      // คำขอที่รอเราตอบสำคัญที่สุด เด้งก่อน
   const busy = UI.modal && UI.modal.k!=='summary' && UI.modal.k!=='reveal';   // อย่าทับโมดัลที่ผู้ใช้เปิดค้างอยู่
 
   // 1) มีรอบที่จบแล้วแต่ยังไม่เคยโชว์ → เด้งสรุปผู้ชนะทุกเครื่อง
@@ -3033,6 +3060,7 @@ function renderModal(){
     ${Store.mode==='cloud'?`<button class="btn sec" data-act="syncNow">🔄 ดึงข้อมูลล่าสุดเดี๋ยวนี้</button>`:''}
     <button class="btn ghost" data-act="closeModal">ปิด</button>`, true);
   else if(m.k==='pickStarter') html = mPickStarter(m);
+  else if(m.k==='incoming') html = mIncoming(m);
   else if(m.k==='confirm') html = mConfirm(m);
   else if(m.k==='summary') html = mSummary(m.round);
   else if(m.k==='reveal') html = mReveal(m.street);
@@ -3235,6 +3263,33 @@ function mPickStarter(m){
     <button class="btn ghost" data-act="closeModal">ยกเลิก</button>`, true);
 }
 
+/** ป๊อปอัพคำขอที่รอเราตอบ (ตอนนี้คือ "ขอยืมเงิน") ตอบได้ในตัวเลย */
+function mIncoming(m){
+  const rq = S.requests[m.rid];
+  if(!rq || rq.status!=='PENDING') return mWrap(`<b class="h1" style="text-align:center">คำขอนี้ถูกดำเนินการไปแล้ว</b>
+    <button class="btn" data-act="closeModal">ปิด</button>`, true);
+  const w = myWallet(), after = w.balance - rq.amount;
+  return mWrap(`
+    <b class="h1" style="text-align:center">🤝 มีคนขอยืมเงินคุณ</b>
+    <div class="card col" style="align-items:center;gap:5px">
+      <span class="av2" style="width:46px;height:46px;font-size:15px">${esc(initials(nameOf(S,rq.to)))}</span>
+      <b class="h2">${esc(nameOf(S,rq.to))}</b>
+      <span class="cap">ขอยืมเงินคุณ</span>
+      <span class="money num out">฿${fmt(rq.amount)}</span>
+      ${rq.note?`<span class="cap">"${esc(rq.note)}"</span>`:''}
+    </div>
+    <div class="ban ${after<0?'r':'y'}">
+      ${after<0 ? '⛔ เงินคุณไม่พอ (มี ฿'+fmtS(w.balance)+')'
+                : '⚠ ให้ยืมแล้วคุณจะเป็นเจ้าหนี้ ฿'+fmtS(rq.amount)+' · กระเป๋า ฿'+fmtBalS(w.balance)+' → ฿'+fmtBalS(after)}
+    </div>
+    <div class="cap" style="text-align:center">ยินยอมแล้วเงินออกทันที ไม่ต้องรอ Admin</div>
+    <div class="g2">
+      <button class="btn ghost" data-act="rejectReq" data-rid="${rq.id}">ปฏิเสธ</button>
+      <button class="btn" data-act="approveReq" data-rid="${rq.id}" ${after<0?'disabled':''}>✓ ยินยอมให้ยืม</button>
+    </div>
+    <button class="btn ghost" data-act="nav" data-s="approvals">ไว้ค่อยตอบ (ดูที่แท็บอนุมัติ)</button>`, true);
+}
+
 function mConfirm(m){
   return mWrap(`<b class="h1" style="text-align:center">${esc(m.title)}</b>
     <div class="cap" style="text-align:center">${esc(m.text||'')}</div>
@@ -3380,8 +3435,8 @@ const A = {
     cmd({t:'JOIN_APPROVED',mid:d.mid,amount:amt});
   },
   rejectJoin(d){ cmd({t:'JOIN_REJECTED',mid:d.mid,reason:''}); },
-  approveReq(d){ cmd({t:'REQ_APPROVED',rid:d.rid}); },
-  rejectReq(d){ cmd({t:'REQ_REJECTED',rid:d.rid,reason:''}); },
+  approveReq(d){ if(UI.modal&&UI.modal.k==='incoming') UI.modal=null; cmd({t:'REQ_APPROVED',rid:d.rid}); },
+  rejectReq(d){ if(UI.modal&&UI.modal.k==='incoming') UI.modal=null; cmd({t:'REQ_REJECTED',rid:d.rid,reason:''}); },
 
   pickChip(d){ UI.form.betSel = Number(d.v); Sfx.chip(); render(); },
   lockedChip(d){ const r=S.curRound; toast('ต้องลงอย่างน้อย ฿'+fmtS(r?r.currentBet:0),'r'); },
