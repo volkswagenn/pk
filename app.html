@@ -2059,16 +2059,14 @@ function streetTable(r){
   if(!s) return '';
   const multi = S.room.settings.multiStreet;
   const cells = [];
-  // ลงกองกลาง
-  if(r.anteAmount>0) cells.push({t:'ลงกอง', v:s.ante, on:r.phase==='ANTE', paid:s.ante>0});
-  // รอบที่ปิดไปแล้ว — ยอดของฉันในแต่ละรอบ
-  (r.streets||[]).forEach(x=>{
-    const d = (x.detail||[]).find(y=>y.memberId===me.id);
-    cells.push({t:'รอบ '+x.index, v:d?d.amount:0, on:false, paid:!!d});
-  });
-  // รอบปัจจุบัน
+  // ยอดรวมของ "ทุกคน" ในแต่ละรอบ ไม่ใช่เฉพาะของเรา
+  const anteAll = r.seats.reduce((a,x)=>a+(x.ante||0),0);
+  const curAll  = r.seats.reduce((a,x)=>a+(x.contributed||0),0);
+  if(r.anteAmount>0) cells.push({t:'ลงกอง', v:anteAll, on:r.phase==='ANTE', paid:anteAll>0});
+  (r.streets||[]).forEach(x=>
+    cells.push({t:'รอบ '+x.index, v:x.total, on:false, paid:x.total>0}));
   if(r.phase==='BETTING')
-    cells.push({t:multi?'รอบ '+r.street:'เดิมพัน', v:s.contributed, on:true, paid:s.contributed>0});
+    cells.push({t:multi?'รอบ '+r.street:'เดิมพัน', v:curAll, on:true, paid:curAll>0});
   if(!cells.length) return '';
   return `<div class="stbl">
     <div class="potcol"><i>🪙 กองรวม</i><b class="num">฿${fmtS(r.pot)}</b></div>
