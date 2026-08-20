@@ -67,7 +67,16 @@ input:focus,select:focus{border-color:var(--brand)}
   padding:9px 11px 12px;display:flex;flex-direction:column;gap:8px}
 /* สำคัญ: ห้ามให้บล็อกลูกถูกบีบเมื่อเนื้อหายาวเกินจอ ไม่งั้นแถววงกลมผู้เล่นจะแบนหายไป */
 .body > *{flex:0 0 auto}
-.nav{flex:0 0 auto;height:52px;border-top:1px solid var(--border);background:var(--bg-surface);display:grid;align-items:center;padding-bottom:env(safe-area-inset-bottom)}
+.nav{flex:0 0 auto;height:56px;border-top:1px solid var(--border);background:var(--bg-surface);display:grid;align-items:center;padding-bottom:env(safe-area-inset-bottom)}
+/* ปุ่มห้องตรงกลาง — วงกลมนูนยกขึ้นเหนือแถบ */
+.navhome{position:relative;display:flex;flex-direction:column;align-items:center;gap:1px;padding-top:0!important}
+.navhome .hc{width:48px;height:48px;margin-top:-20px;border-radius:99px;background:var(--brand);
+  display:flex;align-items:center;justify-content:center;font-size:23px;
+  border:4px solid var(--bg-base);box-shadow:0 4px 12px rgba(23,166,115,.45)}
+.navhome .hl{font:700 10px/1 var(--f);color:var(--brand4)}
+.navhome:not(.on) .hc{background:var(--bg-inset);border-color:var(--bg-base);box-shadow:0 3px 9px rgba(0,0,0,.4)}
+.navhome:not(.on) .hl{color:var(--tm)}
+.navhome:active .hc{transform:scale(.93)}
 .nav button{display:flex;flex-direction:column;align-items:center;gap:3px;font:600 10.5px/1 var(--f);color:var(--tm);padding:6px 0;position:relative}
 .nav button .i{font-size:19px}
 .nav button.on{color:var(--brand4)}
@@ -1907,21 +1916,25 @@ function vHeader(){
     <span class="sp"></span>
     ${canSee?`<button class="hbtn" data-act="modal" data-m="topup" title="เติมเงิน">➕</button>
               <button class="hbtn" data-act="modal" data-m="transfer" title="โอนเงิน">💸</button>`:''}
-    ${n?`<button class="hbtn" data-act="nav" data-s="approvals">🔔<span class="dot2">${n}</span></button>`:''}
     <button class="hbtn" data-act="syncInfo" title="สถานะการซิงก์">${sync}</button>
   </div>`;
 }
 
 function vNav(){
+  // 🏠 ห้อง อยู่ตรงกลางเสมอ เป็นปุ่มวงกลมยกเด่น · แท็บอนุมัติใช้กระดิ่ง 🔔 พร้อม badge
+  const nBadge = isAdmin() ? pendingForAdmin().length + pendingForMe().length : pendingForMe().length;
   const items = isAdmin()
-    ? [['home','🏠','ห้อง'],['approvals','✅','อนุมัติ'],['players','👥','ผู้เล่น'],['history','🕘','ประวัติ'],['settings','⚙️','ตั้งค่า']]
+    ? [['approvals','🔔','อนุมัติ'],['players','👥','ผู้เล่น'],['home','🏠','ห้อง'],['history','🕘','ประวัติ'],['settings','⚙️','ตั้งค่า']]
     : isPlayer()
-      ? [['home','🏠','ห้อง'],['wallet','💰','กระเป๋า'],['history','🕘','ประวัติ'],['settings','⚙️','อื่นๆ']]
-      : [['home','🏠','ห้อง'],['history','🕘','ประวัติ'],['settings','⚙️','อื่นๆ']];
-  const badge = pendingForAdmin().length;
+      ? [['wallet','💰','กระเป๋า'],['approvals','🔔','แจ้งเตือน'],['home','🏠','ห้อง'],['history','🕘','ประวัติ'],['settings','⚙️','อื่นๆ']]
+      : [['approvals','🔔','แจ้งเตือน'],['home','🏠','ห้อง'],['history','🕘','ประวัติ']];
   return `<div class="nav" style="grid-template-columns:repeat(${items.length},1fr)">
-    ${items.map(([k,i,l])=>`<button data-act="nav" data-s="${k}" class="${UI.screen===k?'on':''}">
-      <span class="i">${i}</span>${l}${k==='approvals'&&badge?`<span class="dot">${badge}</span>`:''}</button>`).join('')}
+    ${items.map(([k,i,l])=>{
+      if(k==='home') return `<button data-act="nav" data-s="home" class="navhome ${UI.screen==='home'?'on':''}">
+        <span class="hc">${i}</span><span class="hl">${l}</span></button>`;
+      return `<button data-act="nav" data-s="${k}" class="${UI.screen===k?'on':''}">
+        <span class="i">${i}</span>${l}${k==='approvals'&&nBadge?`<span class="dot">${nBadge}</span>`:''}</button>`;
+    }).join('')}
   </div>`;
 }
 
