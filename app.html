@@ -215,24 +215,35 @@ input:focus,select:focus{border-color:var(--brand)}
 
 /* ===== ชิพโป๊กเกอร์ ===== */
 .chips{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;justify-items:center}
-.pchip{position:relative;width:47px;height:47px;border-radius:50%;flex:none;
+.pchip{position:relative;width:50px;height:50px;border-radius:50%;flex:none;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 3px 7px rgba(0,0,0,.45), inset 0 -2px 5px rgba(0,0,0,.28), inset 0 2px 4px rgba(255,255,255,.22);
-  transition:transform .12s}
+  box-shadow:0 2px 5px rgba(0,0,0,.4), inset 0 -3px 6px rgba(0,0,0,.22), inset 0 3px 5px rgba(255,255,255,.4);
+  transition:transform .12s, box-shadow .12s}
+/* ขอบหยักแบบชิพจริง — ขาวคมชัด อ่านง่ายบนจอมือถือ */
 .pchip .edge{position:absolute;inset:0;border-radius:50%;
-  background:repeating-conic-gradient(rgba(255,255,255,.95) 0 5.5%, rgba(0,0,0,.14) 5.5% 12.5%);
-  -webkit-mask:radial-gradient(circle, transparent 60%, #000 61%, #000 90%, transparent 91%);
-          mask:radial-gradient(circle, transparent 60%, #000 61%, #000 90%, transparent 91%)}
-.pchip .disc{position:absolute;inset:20%;border-radius:50%;background:rgba(255,255,255,.14);
-  box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55), inset 0 0 0 3px rgba(0,0,0,.12), inset 0 2px 4px rgba(255,255,255,.25)}
-.pchip .v{position:relative;z-index:2;font:800 15px/1 var(--f);letter-spacing:-.4px;
-  text-shadow:0 1px 2px rgba(0,0,0,.25)}
-.pchip:active{transform:scale(.93)}
-.pchip.on{transform:translateY(-5px) scale(1.04);
-  box-shadow:0 8px 16px rgba(0,0,0,.5), 0 0 0 3px var(--brand4), inset 0 -2px 5px rgba(0,0,0,.28)}
-.pchip.lock{filter:grayscale(1) brightness(.45);box-shadow:none;opacity:.55}
+  background:repeating-conic-gradient(#fff 0 6%, transparent 6% 12.5%);
+  -webkit-mask:radial-gradient(circle, transparent 66%, #000 67%, #000 97%, transparent 98%);
+          mask:radial-gradient(circle, transparent 66%, #000 67%, #000 97%, transparent 98%)}
+/* วงในสว่าง ทำให้ตัวเลขเด่นออกมาจากพื้น */
+.pchip .disc{position:absolute;inset:17%;border-radius:50%;
+  background:radial-gradient(circle at 50% 35%, rgba(255,255,255,.45), rgba(255,255,255,.1));
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.75), 0 1px 2px rgba(0,0,0,.18)}
+.pchip .v{position:relative;z-index:2;font:800 16px/1 var(--f);letter-spacing:-.5px;
+  text-shadow:0 1px 1px rgba(255,255,255,.45)}
+.pchip:active{transform:scale(.92)}
+.pchip.on{transform:translateY(-6px) scale(1.06);
+  box-shadow:0 10px 18px rgba(0,0,0,.45), 0 0 0 3px var(--brand4), 0 0 14px rgba(34,197,138,.5),
+             inset 0 -3px 6px rgba(0,0,0,.22), inset 0 3px 5px rgba(255,255,255,.4)}
+.pchip.lock{filter:grayscale(.9) brightness(.5) contrast(.8);box-shadow:none;opacity:.5}
 .pchip.lock .lk{position:absolute;z-index:3;font-size:15px}
-.pchip.lock .v{opacity:.25}
+.pchip.lock .v{opacity:.2}
+/* ชิพดินสอ — ใส่ยอดเอง */
+.pchip.pen{background:linear-gradient(145deg,var(--bg-elev),var(--bg-inset));
+  box-shadow:0 2px 5px rgba(0,0,0,.35), inset 0 0 0 2px var(--bs)}
+.pchip.pen .edge{background:repeating-conic-gradient(var(--bs) 0 6%, transparent 6% 12.5%)}
+.pchip.pen .disc{background:transparent;box-shadow:inset 0 0 0 1.5px var(--border)}
+.pchip.pen .v{font-size:17px;text-shadow:none}
+.pchip.pen.lock{filter:none;opacity:.4}
 .pchip.sm{width:30px;height:30px}
 .pchip.sm .v{font-size:9px}
 .pchip.xs{width:22px;height:22px}
@@ -323,9 +334,9 @@ input:focus,select:focus{border-color:var(--brand)}
 /* ตารางยอดเงินรายรอบลงเงิน — ซ้ายสุดคือกองรวม */
 .stbl{display:flex;align-items:stretch;gap:6px}
 .stbl .potcol{display:flex;flex-direction:column;justify-content:center;gap:1px;padding:5px 10px;
-  border-radius:10px;background:var(--bg-surface);border:1px solid var(--bs);flex:none;min-width:78px}
-.stbl .potcol i{font:600 8.5px/1 var(--f);font-style:normal;color:var(--tm)}
-.stbl .potcol b{font:800 17px/1 var(--f);color:var(--tp)}
+  border-radius:10px;background:var(--pot-bg);border:1px solid var(--pot);flex:none;min-width:78px}
+.stbl .potcol i{font:600 8.5px/1 var(--f);font-style:normal;color:var(--pot);opacity:.9}
+.stbl .potcol b{font:800 17px/1 var(--f);color:var(--pot)}
 .stbl .cells{display:flex;gap:4px;flex:1;min-width:0;overflow-x:auto}
 .stbl .c{flex:1;min-width:46px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
   padding:5px 4px;border-radius:9px;background:var(--bg-inset);border:1px solid var(--border)}
@@ -336,6 +347,31 @@ input:focus,select:focus{border-color:var(--brand)}
 .stbl .c.now i,.stbl .c.now b{color:var(--pot)}
 .stbl .c.sum{background:var(--bg-surface);border-color:var(--bs)}
 .stbl .c.sum b{color:var(--tp)}
+/* ===== ปุ่มลงมือ: ผ่าน / หมอบ / ลงเดิมพัน ===== */
+.abtn{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
+  height:54px;padding:6px 14px;border-radius:15px;border:1px solid transparent;
+  transition:transform .1s, box-shadow .15s, filter .15s}
+.abtn:active{transform:scale(.975)}
+.abtn .ic{font-size:19px;line-height:1;flex:none}
+.abtn .tx{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0}
+.abtn .tx b{font:800 16px/1.1 var(--f);letter-spacing:-.2px}
+.abtn .tx i{font:500 10.5px/1.2 var(--f);font-style:normal;opacity:.8}
+/* ผ่าน — ฟ้าเรียบๆ ไม่แย่งความสนใจจากปุ่มลงเงิน */
+.abtn.check{background:var(--info-bg);border-color:var(--info);color:var(--info);height:42px}
+.abtn.check .tx b{font-size:14px}
+.abtn.check.off{background:var(--bg-inset);border-color:var(--border);color:var(--tm);
+  border-style:dashed;cursor:not-allowed}
+/* หมอบ — เทาเข้ม ขนาดพอดีมือ ไม่เด่นเกิน */
+.abtn.fold{width:106px;flex:none;background:var(--bg-inset);border-color:var(--bs);color:var(--ts)}
+.abtn.fold .tx b{font-size:15px}
+.abtn.fold:active{background:var(--out-bg);border-color:var(--danger);color:var(--out)}
+/* ลงเดิมพัน — ปุ่มเอกของจอ เขียวเรืองแสง */
+.abtn.bet{flex:1;background:linear-gradient(160deg,var(--brand4),var(--brand6));color:#04140D;
+  box-shadow:0 5px 16px rgba(23,166,115,.42), inset 0 1px 0 rgba(255,255,255,.3)}
+.abtn.bet .tx i{color:rgba(4,20,13,.72);opacity:1}
+.abtn.bet.off{background:var(--bg-inset);border:1px dashed var(--border);color:var(--tm);
+  box-shadow:none;cursor:not-allowed}
+.abtn.bet.off .tx i{color:var(--tm)}
 /* misc */
 .kbd{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
 .kbd button{height:50px;border-radius:11px;background:var(--bg-inset);border:1px solid var(--border);font:700 18px/1 var(--f)}
@@ -380,22 +416,23 @@ const SB_CDN   = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist
 
 /* สีชิพตามมูลค่า — จัดให้ชุดพื้นฐาน 20/40/60/80/100 ต่างสีกันชัดทั้ง 5 ใบ */
 /* สีชิพแบบคาสิโน — จับคู่มูลค่าตรงตัวก่อน (ไม่ซ้ำกันในชุดเดียวกันแน่นอน) แล้วค่อย fallback ตามช่วง */
+/* สีชิพ [สว่าง, เข้ม, สีตัวเลข] — คุมให้สดและต่างกันชัดบนจอมือถือ */
 const CHIP_EXACT = {
-  1:  ['#FDFDFD','#C9D1DB','#10151C'],   // ขาว
-  5:  ['#F0575C','#B01E24','#fff'],      // แดง
-  10: ['#57ABFF','#1B62B8','#fff'],      // ฟ้า
-  20: ['#2BC98A','#0C7A50','#04140D'],   // เขียว
-  25: ['#4ECDC4','#1E8E86','#04211F'],   // เขียวน้ำทะเล
-  30: ['#FFD24D','#D9A211','#241705'],   // เหลือง
-  40: ['#FF9A4D','#D96A10','#2A1403'],   // ส้ม
-  50: ['#5B78F0','#2C41A8','#fff'],      // น้ำเงิน
-  60: ['#A88CFF','#6A4BE0','#fff'],      // ม่วง
-  70: ['#8AD44A','#4E8A1C','#122A02'],   // เขียวมะนาว
-  80: ['#FF6FA5','#C42566','#fff'],      // ชมพู
-  90: ['#7ADBF0','#2E93AC','#062A33'],   // ฟ้าน้ำแข็ง
-  100:['#4A5462','#12161D','#fff'],      // ดำ
-  500:['#E9E2FF','#9B7BD0','#2A1050'],   // เงินม่วง
-  1000:['#FFD264','#C8901A','#241705'],  // ทอง
+  1:  ['#FFFFFF','#D5DCE5','#10151C'],   // ขาว
+  5:  ['#FF6B70','#D01F27','#fff'],      // แดง
+  10: ['#5CB4FF','#0F63C4','#fff'],      // ฟ้า
+  20: ['#34E39C','#0A9E63','#03291B'],   // เขียวสด
+  25: ['#4FE0D6','#12968D','#032523'],   // เขียวน้ำทะเล
+  30: ['#FFDD5C','#E0A800','#2E1E00'],   // เหลือง
+  40: ['#FFA25C','#E56A00','#2E1500'],   // ส้มสด
+  50: ['#6C8CFF','#2C41C4','#fff'],      // น้ำเงิน
+  60: ['#B79CFF','#6B3FEA','#fff'],      // ม่วงสด
+  70: ['#9BE855','#559E14','#0F2A00'],   // เขียวมะนาว
+  80: ['#FF7FB4','#D41F70','#fff'],      // ชมพูสด
+  90: ['#7FE6FF','#1E9EC4','#02252E'],   // ฟ้าน้ำแข็ง
+  100:['#6B7688','#1B2029','#fff'],      // เทาเข้ม
+  500:['#F0EAFF','#A283DC','#2A1050'],   // เงินม่วง
+  1000:['#FFDC7A','#D19A16','#2E1D00'],  // ทอง
 };
 const CHIP_FACE = v => {
   const e = CHIP_EXACT[v] ||
@@ -1789,7 +1826,7 @@ function streetTable(r){
     cells.push({t:multi?'รอบ '+r.street:'เดิมพัน', v:s.contributed, on:true, paid:s.contributed>0});
   if(!cells.length) return '';
   return `<div class="stbl">
-    <div class="potcol"><i>กระเป๋าของฉัน</i><b class="num">฿${fmtBalS(myWallet().balance)}</b></div>
+    <div class="potcol"><i>🪙 กองรวม</i><b class="num">฿${fmtS(r.pot)}</b></div>
     <div class="cells">
       ${cells.map(c=>`<div class="c ${c.on?'now':''} ${c.paid?'paid':''}">
         <i>${c.t}${c.on?' ★':''}</i><b class="num">${c.paid?'฿'+fmtS(c.v):'—'}</b></div>`).join('')}
@@ -1986,12 +2023,14 @@ function betPanel(adminMode){
       <span class="cap">ทุกคนที่ยังไม่หมอบต้องกลับมาตามให้ถึง ฿${fmtS(sel)} หรือหมอบ</span></div>`;
   }
 
-  const chipHtml = chips.map(cB=>{
+  /* ชิพได้มากสุด 5 ใบ · ใบที่ 6 เป็นดินสอไว้ใส่ยอดเอง */
+  const chipHtml = chips.slice(0,5).map(cB=>{
     const v = B(cB);
     const locked = !canAct || v<cur || v<=mineIn;
     return pokerChip(cB, (locked?'lock ':'')+(sel===v?'on':''),
       `data-act="${locked?'lockedChip':'pickChip'}" data-v="${v}"`);
-  }).join('');
+  }).join('') + `<button class="pchip pen ${canAct?'':'lock'}" data-act="${canAct?'modal':'lockedChip'}" data-m="custom" title="ใส่ยอดเอง">
+      <i class="edge"></i><i class="disc"></i><b class="v">✏️</b></button>`;
   const canCheck = canAct && mineIn===cur;
 
   /* กล่องบอกสถานะ — ตัวใหญ่ที่สุดบนจอ อ่านปราดเดียวรู้ว่าต้องทำอะไร */
@@ -2027,11 +2066,11 @@ function betPanel(adminMode){
   ${canAct?`
   <div class="col" style="gap:6px">
     <div class="chips">${chipHtml}</div>
-    <div class="g2">
-      <button class="btn sec sm" style="width:100%;height:34px" data-act="${canCheck?'check':'lockedCheck'}" ${canCheck?'':'disabled'}>
-        ${canCheck?'⏭ ผ่าน (ไม่เสียเงิน)':'⏭ ผ่านไม่ได้ 🔒'}</button>
-      <button class="btn sec sm" style="width:100%;height:34px" data-act="modal" data-m="custom">⌨ ใส่ยอดเอง</button>
-    </div>
+    <button class="abtn check ${canCheck?'':'off'}" data-act="${canCheck?'check':'lockedCheck'}">
+      <span class="ic">⏭</span>
+      <span class="tx"><b>${canCheck?'ผ่าน':'ผ่านไม่ได้'}</b><i>${canCheck?'ไม่เสียเงิน ส่งต่อคนถัดไป':'ต้องตามให้ถึง ฿'+fmtS(cur)+' หรือหมอบ'}</i></span>
+      ${canCheck?'':'<span class="ic">🔒</span>'}
+    </button>
     ${sel!==null?`<div class="cap num" style="text-align:center">เลือก ฿${fmtS(sel)} → จ่ายเพิ่ม ฿${fmtS(Math.max(0,sel-mineIn))} · เหลือ ฿${fmtBalS(Math.max(0,w.balance-(sel-mineIn)))}</div>`
                :`<div class="cap" style="text-align:center">ตัวเลขบนชิพคือ <b>ยอดรวมของรอบนี้</b> ไม่ใช่ยอดที่จ่ายเพิ่ม</div>`}
   </div>`:''}
@@ -2073,8 +2112,10 @@ function vFooterAction(){
     sub = (mine>0?'จ่ายเพิ่ม ฿'+fmtS(cost)+' · ':'')+'คงเหลือ ฿'+fmtBalS(w.balance-cost);
   }
   return `<div class="foot">
-    <button class="btn big sec" style="width:112px;flex:none" data-act="fold">หมอบการ์ด<small>ไม่เสียเงิน</small></button>
-    <button class="btn big" data-act="bet" ${dis?'disabled':''}>${main}${sub?`<small>${sub}</small>`:''}</button>
+    <button class="abtn fold" data-act="fold">
+      <span class="ic">🃏</span><span class="tx"><b>หมอบ</b><i>ไม่เสียเงิน</i></span></button>
+    <button class="abtn bet ${dis?'off':''}" data-act="bet">
+      <span class="tx"><b>${main}</b>${sub?`<i>${sub}</i>`:''}</span></button>
   </div>`;
 }
 
