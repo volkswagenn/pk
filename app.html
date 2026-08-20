@@ -2872,8 +2872,11 @@ function mManage(mid){
       <button class="btn ${mode==='ret'?'dgr':''}" data-act="doManage" data-mid="${mid}" ${amt<=0?'disabled':''}>
         ${mode==='add'?'ยืนยันเติมเงิน':'ยืนยันคืน BANK'}</button></div>
     ${meM()&&meM().role==='ADMIN'&&m.status==='PLAYING'&&mid!==me.id
-      ? `<button class="btn sec" data-act="makeAdmin" data-mid="${mid}">👑 โอนสิทธิ์ Admin ให้ ${esc(m.name)}</button>` : ''}
-    <button class="btn ghost" data-act="removeMember" data-mid="${mid}">เอา ${esc(m.name)} ออกจากวง</button>`);
+      ? `<div class="g2">
+           <button class="btn sec" data-act="makeAdmin" data-mid="${mid}">👑 โอนสิทธิ์ Admin</button>
+           <button class="btn ghost" data-act="removeMember" data-mid="${mid}">🚪 เอาออกจากวง</button>
+         </div>`
+      : `<button class="btn ghost" data-act="removeMember" data-mid="${mid}">🚪 เอา ${esc(m.name)} ออกจากวง</button>`}`);
 }
 
 function mMore(){
