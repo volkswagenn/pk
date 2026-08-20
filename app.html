@@ -324,6 +324,12 @@ input:focus,select:focus{border-color:var(--brand)}
 /* ===== ไพ่กลาง (community cards) ===== */
 .cards{display:flex;gap:9px;justify-content:center;padding:6px 0}
 .pcard{width:54px;height:78px;perspective:500px;flex:none}
+/* ไพ่จิ๋วกลางโต๊ะ */
+.tcards{display:flex;gap:4px;justify-content:center;margin-bottom:2px}
+.pcard.mini{width:26px;height:38px}
+.pcard.mini .fc .pip{font-size:13px}
+.pcard.mini .fc .no{font-size:8px}
+.pcard.mini .fc,.pcard.mini .bk{border-radius:4px;box-shadow:0 2px 5px rgba(0,0,0,.45)}
 .pcard .in{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .5s}
 .pcard.flip .in{animation:cardFlip 1s ease-in-out infinite alternate}
 @keyframes cardFlip{0%{transform:rotateY(0)}100%{transform:rotateY(180deg)}}
@@ -532,23 +538,30 @@ async function ensureQrLib(){
   if(!_qrLibLoading) _qrLibLoading = loadScript('https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js');
   await _qrLibLoading;
 }
-/** วาด QR ลง canvas พร้อมกรอบ+ข้อความ แล้วคืน canvas (ไว้โชว์และบันทึกรูป) */
-function drawPpCanvas(payload, title, amountSatang){
+/** วาด QR ลง canvas พร้อมชื่อ+เบอร์ผู้รับ ไว้ตรวจสอบก่อนโอน แล้วคืน canvas (โชว์และบันทึกรูป) */
+function drawPpCanvas(payload, title, amountSatang, ppNumber){
   const qr = window.qrcode(0,'M'); qr.addData(payload); qr.make();
-  const n = qr.getModuleCount(), cell=8, pad=28, headH=64;
+  const n = qr.getModuleCount(), cell=8, pad=26, headH=118, footH=30;
   const size = n*cell + pad*2;
   const cv = document.createElement('canvas');
-  cv.width = size; cv.height = size + headH;
+  cv.width = size; cv.height = headH + size + footH;
   const g = cv.getContext('2d');
   g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
   g.fillStyle='#113566'; g.fillRect(0,0,cv.width,headH);           // หัวน้ำเงินแบบพร้อมเพย์
-  g.fillStyle='#fff'; g.font='700 20px system-ui'; g.textAlign='center';
-  g.fillText('PromptPay · '+title, cv.width/2, 27);
-  g.font='800 24px system-ui';
-  g.fillText(amountSatang>0 ? '฿ '+fmt(amountSatang) : 'ไม่ระบุยอด', cv.width/2, 54);
+  g.textAlign='center';
+  g.fillStyle='rgba(255,255,255,.85)'; g.font='600 15px system-ui';
+  g.fillText('PromptPay · พร้อมเพย์', cv.width/2, 24);
+  g.fillStyle='#fff'; g.font='800 26px system-ui';
+  g.fillText(title, cv.width/2, 56);                               // ชื่อผู้รับ ตัวใหญ่
+  const ppShow = ppNumber ? (ppNumber.length===10 ? ppNumber.replace(/(\d{3})(\d{3})(\d{4})/,'$1-$2-$3') : ppNumber) : '';
+  if(ppShow){ g.fillStyle='rgba(255,255,255,.92)'; g.font='600 18px system-ui'; g.fillText(ppShow, cv.width/2, 82); }
+  g.fillStyle='#FFD98A'; g.font='800 24px system-ui';
+  g.fillText(amountSatang>0 ? '฿ '+fmt(amountSatang) : 'ไม่ระบุยอด', cv.width/2, 110);
   g.fillStyle='#000';
   for(let r=0;r<n;r++) for(let c=0;c<n;c++)
-    if(qr.isDark(r,c)) g.fillRect(pad+c*cell, headH+pad+r*cell-14, cell, cell);
+    if(qr.isDark(r,c)) g.fillRect(pad+c*cell, headH+pad+r*cell, cell, cell);
+  g.fillStyle='#8A94A2'; g.font='500 13px system-ui';
+  g.fillText('เช็คชื่อผู้รับให้ตรงก่อนกดโอนทุกครั้ง', cv.width/2, headH+size+18);
   return cv;
 }
 
@@ -2049,6 +2062,7 @@ function pokerTable(r){
   return `<div class="ptable">
     <div class="felt"></div>
     <div class="pcenter">
+      ${tableCards(r)}
       <span class="plbl">${potLabel}</span>
       <span class="pamt num">฿${fmtS(r.pot)}</span>
       ${sub?`<span class="psub">${sub}</span>`:''}
@@ -2990,7 +3004,7 @@ function renderModal(){
       if(!t.pp) return;
       try{
         await ensureQrLib();
-        const cv = drawPpCanvas(promptpayPayload(t.pp, m.amt), t.name, m.amt);
+        const cv = drawPpCanvas(promptpayPayload(t.pp, m.amt), t.name, m.amt, t.pp);
         cv.style.cssText='width:min(75vw,260px);height:auto;border-radius:12px';
         const box=document.getElementById('ppqrbox');
         if(box){ box.innerHTML=''; box.appendChild(cv); window._ppCv=cv; window._ppName=t.name; }
@@ -3162,15 +3176,31 @@ function mMore(){
     <button class="btn ghost" data-act="closeModal">ปิด</button>`);
 }
 
-/** ไพ่ 1 ใบ — open = หงายค้าง · flip = พลิกไปพลิกมาไม่หยุด */
-function playCard(mode, i){
+/** ไพ่ 1 ใบ — open = หงายค้าง · flip = พลิกไปพลิกมาไม่หยุด · '' = คว่ำ */
+function playCard(mode, i, size){
   const suits=[['♠','#10151C'],['♥','#C8272D'],['♦','#C8272D'],['♣','#10151C']];
   const [pip,col] = suits[i%4];
-  return `<div class="pcard ${mode}">
+  return `<div class="pcard ${mode||''} ${size||''}">
     <div class="in">
       <div class="bk"></div>
       <div class="fc"><span class="pip" style="color:${col}">${pip}</span><span class="no">?</span></div>
     </div></div>`;
+}
+
+/** ไพ่กลาง 5 ใบบนโต๊ะ — เปิดตามรอบลงเงินที่จบไปแล้ว
+ *  ลงกองกลาง: ไม่มีไพ่ · เริ่มเดิมพันรอบ 1: คว่ำ 5 · จบรอบ 1: เปิด 3 · จบรอบ 2: เปิด 4 · จบรอบ 3: เปิด 5
+ *  ชุดที่เพิ่งเปิดล่าสุดพลิกไปมา (เหมือนป๊อปอัพเปิดไพ่) ใบก่อนหน้าหงายค้าง */
+function tableCards(r){
+  if(!r || r.phase==='ANTE') return '';
+  const street = r.street || 1;
+  const openN  = street<=1 ? 0 : street===2 ? 3 : street===3 ? 4 : 5;
+  const newFrom = street===2 ? 0 : street===3 ? 3 : street>=4 ? 4 : 99;  // ใบแรกของชุดที่เพิ่งเปิด
+  let out='';
+  for(let i=0;i<5;i++){
+    const mode = i<openN ? (i>=newFrom ? 'flip' : 'open') : '';
+    out += playCard(mode, i, 'mini');
+  }
+  return `<div class="tcards">${out}</div>`;
 }
 /** ป๊อปอัพเปิดไพ่กลาง — street 2: เปิด 3 ใบ · 3: ใบที่ 4 · 4: ใบที่ 5 */
 function mReveal(street){
