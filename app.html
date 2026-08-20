@@ -729,14 +729,18 @@ function afterAction(st, r, ev, actedPos){
   if(roundComplete(r)){
     const alive = notFolded(r).length;
     // โหมดโป๊กเกอร์: ครบตาแล้วยังเหลือคนสู้กัน ≥2 คน → เปิดรอบลงเงินใหม่ต่อ
-    if(st.room.settings.multiStreet && alive > 1 && r.status==='OPEN'){
+    // แต่ไม่เกินรอบที่ 4 — รอบ 4 คือรอบสุดท้าย (ไพ่เปิดครบ 5 ใบแล้ว)
+    if(st.room.settings.multiStreet && alive > 1 && r.status==='OPEN' && r.street < 4){
       nextStreet(st, r, ev);
       return;
     }
     r.turn = null; r.complete = true;
     if(st.room.settings.autoClose && r.status==='OPEN'){
       r.status='LOCKED';
-      feed(st,ev,'🔒',(alive<=1?'เหลือคนเดียว':'ครบตาแล้ว')+' — ปิดรับลงเงินอัตโนมัติ (กองรวม ฿'+fmtS(r.pot)+')','y');
+      const why = alive<=1 ? 'เหลือคนเดียว'
+                : (st.room.settings.multiStreet && r.street>=4) ? 'ครบ 4 รอบลงเงินแล้ว — จบมือ'
+                : 'ครบตาแล้ว';
+      feed(st,ev,'🔒',why+' — ปิดรับลงเงินอัตโนมัติ (กองรวม ฿'+fmtS(r.pot)+')','y');
     }
   } else {
     r.turn = nextTurn(r, actedPos);
@@ -1667,7 +1671,7 @@ function autoCloseRow(kind){
 
 /* จำว่าเคยโชว์อะไรไปแล้ว — ไม่พึ่งการเทียบ snapshot เพราะเครื่องผู้เล่น
    มักได้ event มาเป็นชุด (poll ทุก 4 วิ) แล้วข้ามจังหวะ SETTLED ไปเลย */
-let seenSettled = null, seenStreet = {};
+let seenSettled = null, seenStreet = {}, seenHandDone = {};
 
 let seenReqs = null;      // id คำขอที่เคยแจ้งเตือนไปแล้ว
 
@@ -1734,6 +1738,16 @@ function maybePopups(){
       else toast('🃏 จบรอบลงเงินที่ '+(b.street-1)+' — เปิดไพ่กลางได้','y');
     }
   } else if(b && !seenStreet[b.id]) seenStreet[b.id] = b.street;
+
+  // 3) มือจบแล้ว (ครบตารอบสุดท้าย หรือปิดรับลงเงินแล้ว) → เด้งเมนูจัดการรอบให้ Admin ทันที
+  //    จะได้กดจ่ายเงินกองกลางต่อได้เลย ไม่ต้องหาเมนูเอง
+  if(isAdmin() && b && b.phase==='BETTING'
+     && (b.status==='LOCKED' || (b.status==='OPEN' && b.complete))
+     && !seenHandDone[b.id]){
+    seenHandDone[b.id] = true;
+    if(!UI.modal){ UI.modal={k:'adminQuick'}; Sfx.chip && Sfx.chip(); render(); return; }
+    toast('🏁 มือนี้จบแล้ว — กดมงกุฎเพื่อจ่ายเงินกองกลาง','y');
+  }
 }
 
 const TOAST_MAX = 1;                       // แถบเดียวเสมอ — อันใหม่แทนที่อันเก่า ไม่ซ้อนกัน
@@ -3291,10 +3305,11 @@ function tableCards(r){
   if(!r || r.phase==='ANTE') return '';
   const street = r.street || 1;
   const openN  = street<=1 ? 0 : street===2 ? 3 : street===3 ? 4 : 5;
-  const newFrom = street===2 ? 0 : street===3 ? 3 : street>=4 ? 4 : 99;  // ใบแรกของชุดที่เพิ่งเปิด
+  const newFrom = street===2 ? 0 : street===3 ? 3 : 99;   // ใบแรกของชุดที่เพิ่งเปิด
   let out='';
   for(let i=0;i<5;i++){
-    const mode = i<openN ? (i>=newFrom ? 'flip' : 'open') : '';
+    // รอบ 4 = รอบสุดท้าย: ไพ่เปิดครบทุกใบ นิ่งไม่พลิกแล้ว
+    const mode = i<openN ? ((street<4 && i>=newFrom) ? 'flip' : 'open') : '';
     out += playCard(mode, i, 'mini');
   }
   return `<div class="tcards">${out}</div>`;
