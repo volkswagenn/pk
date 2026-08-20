@@ -47,6 +47,7 @@ input:focus,select:focus{border-color:var(--brand)}
 .hdr b{font:700 15px/1 var(--f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hdr .code{font:600 11px/1 var(--f);color:var(--ts);background:var(--chip);padding:5px 8px;border-radius:6px;letter-spacing:1px}
 /* กระเป๋าเงินบน top bar */
+.hcrown{font-size:32px;line-height:1;flex:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4))}
 .hwallet{display:flex;flex-direction:column;gap:1px;min-width:0}
 .hwallet .l{font:600 9.5px/1 var(--f);color:var(--tm)}
 .hwallet .v{font:800 21px/1 var(--f);letter-spacing:-.3px}
@@ -1049,7 +1050,8 @@ function apply(st, ev){
     case 'ADMIN_TRANSFERRED': {
       const from=st.members[ev.by], to=st.members[ev.mid];
       from.role='PLAYER'; to.role='ADMIN'; st.room.ownerId=ev.mid;
-      feed(st,ev,'👑','โอนสิทธิ์ Admin จาก '+from.name+' ให้ '+to.name,'y');
+      st.adminChangedAt = ev.id;                  // ไว้เด้ง pop-up แจ้งคนที่ได้รับตำแหน่ง
+      feed(st,ev,'👑','โอนสิทธิ์ Admin จาก '+from.name+' ให้ '+to.name+' — มงกุฎย้ายไปที่ '+to.name+' แล้ว','y');
       break;
     }
     case 'BET': {
@@ -1363,6 +1365,13 @@ function refresh(){
   notifyMyTurn(prev);
   updateTurnNag();
   if(firstLoad) initPopupMarks(); else maybePopups();
+  // 👑 เพิ่งได้เป็น Admin → เด้ง pop-up แจ้งเจ้าตัวให้รู้ชัดๆ
+  if(!firstLoad && S.adminChangedAt && S.adminChangedAt!==prev.adminChangedAt
+     && S.room && S.room.ownerId===me.id && !UI.modal){
+    UI.modal={k:'confirm',title:'👑 คุณได้เป็น Admin แล้ว',
+      text:'มงกุฎย้ายมาที่คุณ — ตอนนี้คุณคุมห้อง อนุมัติเงิน เปิด/ปิดรอบ และจ่ายกองกลางได้ ดูปุ่มจัดการได้ที่มงกุฎลอยบนจอ',
+      ok:'รับทราบ', fn:()=>{}};
+  }
   if(!firstLoad && prev.feed && S.feed.length>prev.feed.length && UI.screen!=='landing'){
     const added = S.feed.slice(prev.feed.length).filter(f=>f.kind!=='silent');
     // แสดงแถบเดียวเสมอ — เอาเฉพาะรายการล่าสุด (อันใหม่แทนที่อันเก่าทันที ไม่ซ้อนกัน)
@@ -1736,7 +1745,8 @@ function vHeader(){
   const sync = Store.mode!=='cloud' ? '💻' : Store.rt ? '<span class="live"></span>' : Store.online ? '🔄' : '⚠️';
   return `<div class="hdr">
     ${canSee
-      ? `<div class="hwallet" data-act="toggleBal" style="cursor:pointer"><span class="l">💰 กระเป๋าของฉัน</span>
+      ? `${isAdmin()?'<span class="hcrown" title="คุณคือ Admin ของห้องนี้">👑</span>':''}
+         <div class="hwallet" data-act="toggleBal" style="cursor:pointer"><span class="l">💰 กระเป๋าของฉัน${isAdmin()?' (Admin)':''}</span>
            <span class="v num">฿${fmtBal(w.balance)}</span></div>
          <button class="hbtn" data-act="toggleBal" title="${hideBal?'แสดงยอดเงิน':'ซ่อนยอดเงิน'}">${hideBal?'🙈':'👁️'}</button>`
       : `<b>${esc(S.room.name)}</b><span class="code">${S.room.code}</span>`}
