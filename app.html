@@ -168,6 +168,39 @@ input:focus,select:focus{border-color:var(--brand)}
 .drow.dragging{opacity:.92;box-shadow:0 8px 22px rgba(0,0,0,.5);border-color:var(--brand4)!important;
   position:relative;z-index:30;transition:none}
 .drow.dropgap{border-top:2px solid var(--brand4)}
+/* ===== แถวผู้เล่นในหน้า "ผู้เล่น" — 2 ชั้น =====
+   ชั้นบน: ลำดับ · ชื่อ · ยอด   ชั้นล่าง: ปุ่มจัดการของ Admin
+   ต้องแยกชั้น เพราะบนมือถือถ้าวางเรียงแถวเดียว ปุ่มจะแย่งความกว้างจนชื่อตกบรรทัด */
+/* ต้องเขียนเป็น .lrow.prow — .lrow ถูกประกาศทีหลังในไฟล์นี้ ถ้า specificity เท่ากันมันจะชนะ
+   แล้ว padding/gap เดิมของ .lrow จะดันแถวสูงเกินโดยไม่รู้ตัว */
+.lrow.prow{flex-direction:column;align-items:stretch;gap:0;padding:7px 9px}
+.ptop{display:flex;align-items:center;gap:8px;min-width:0}
+.ptop .grip{height:34px}
+.pinfo{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.pnm{display:flex;align-items:center;gap:5px;min-width:0}
+/* ชื่อยาวให้ตัดด้วย … แทนที่จะดันบรรทัดใหม่ */
+.pnm b{font:600 13.5px/1.25 var(--f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.pnm .you{font:500 10.5px/1 var(--f);color:var(--tm);flex:none}
+.pmeta{font:400 10.5px/1.3 var(--f);color:var(--tm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ppl{font:700 14.5px/1 var(--f);flex:none;white-space:nowrap;text-align:right}
+.ptag{font:600 9.5px/1 var(--f);padding:3px 6px;border-radius:99px;flex:none;white-space:nowrap}
+.ptag.pause{background:var(--pend-bg);border:1px solid var(--pending);color:var(--pending)}
+.ptag.turn{background:var(--pending);color:#241705}
+.pacts{display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+.pbtn{height:30px;border-radius:9px;padding:0 10px;background:var(--bg-inset);border:1px solid var(--bs);
+  color:var(--tp);font:600 12px/1 var(--f);display:flex;align-items:center;justify-content:center;gap:5px;flex:none}
+.pbtn:active{transform:scale(.95)}
+/* ปุ่มพัก/ปลดพักยืดเต็มช่องที่เหลือ — ไม่ทิ้งช่องว่างกลางแถวให้ดูเหมือนจัดวางพลาด */
+.pbtn.grow{flex:1;min-width:0}
+.pbtn.go{background:var(--brand);border-color:var(--brand);color:#04140D}
+.pbtn.ic{width:32px;padding:0;font-size:15px}
+.pmv{width:30px;height:30px;border-radius:9px;background:var(--bg-inset);border:1px solid var(--border);
+  color:var(--ts);font-size:10px;line-height:1;flex:none}
+.pmv[disabled]{opacity:.3}
+/* คนที่พักอยู่ — หรี่เฉพาะตัวตน ปุ่มยังอ่านชัด */
+.prow.paused{border-style:dashed;border-color:var(--bs)}
+.prow.paused .av2{opacity:.5}
+.prow.paused .pnm b{color:var(--ts)}
 .pseat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;width:56px}
 .pseat .av{width:33px;height:33px;border-radius:99px;background:var(--bg-surface);border:2.5px solid var(--border);
   display:flex;align-items:center;justify-content:center;font:700 11.5px/1 var(--f);color:var(--tp);
@@ -3003,29 +3036,38 @@ function vPlayers(){
     ${isAdmin()?'<div class="cap">ลำดับนี้คือคิวการลงเงิน — คนตำแหน่ง 1 ลงก่อน แล้วไล่ลงไป</div>':''}
     ${list.map((p,i)=>{ const w=S.wallets[p.id]||{balance:0,issuedIn:0}; const v=profitOf(p.id);
       const isTurn = S.curRound && S.curRound.status==='OPEN' && S.curRound.turn===p.id;
-      return `<div class="lrow drow" data-mid="${p.id}" style="${isTurn?'border-color:var(--pending)':''}">
-        ${isAdmin()?`<span class="grip" data-grip="${p.id}">☰</span>`:''}
-        <span class="posbig">${i+1}</span>
-        <span class="av2" style="border-color:${p.color}">${faceOf(p,false)}</span>
-        <div class="col" style="gap:2px"><b style="font:600 13px/1 var(--f)">${esc(p.name)}${p.id===me.id?' (คุณ)':''}${p.status==='SITTING_OUT'?' <span class="pill" style="color:var(--pending)">💤 พัก</span>':isTurn?' <span class="pill pend">ตานี้</span>':''}</b>
-          <span class="cap">${isAdmin()||p.id===me.id?`฿${fmtS(w.balance)} · เบิกไป ฿${fmtS(w.issuedIn)}`:'ตำแหน่ง '+(i+1)}</span></div>
-        <span class="sp"></span>
-        ${isAdmin()||p.id===me.id?`<span class="money-s num" style="color:${v>0?'var(--in)':v<0?'var(--out)':'var(--tm)'}">${v>0?'+':''}${fmtS(v)}</span>`:''}
-        ${isAdmin()?`${p.status==='SITTING_OUT'
-            ?`<button class="btn sm" data-act="resumeMember" data-mid="${p.id}">🙌 ปลดพัก</button>`
-            :`<button class="btn sec sm" data-act="pauseMember" data-mid="${p.id}" title="พักการเล่น — ข้ามตาให้ตอนไม่อยู่">💤</button>`}
-        <div class="col" style="gap:2px">
-          <button class="mv" data-act="moveSeat" data-mid="${p.id}" data-d="-1" ${i===0?'disabled':''}>▲</button>
-          <button class="mv" data-act="moveSeat" data-mid="${p.id}" data-d="1" ${i===list.length-1?'disabled':''}>▼</button></div>
-        <button class="btn sec sm" data-act="modal" data-m="manage" data-mid="${p.id}">⋯</button>`:''}</div>`;
+      const paused = p.status==='SITTING_OUT';
+      const seeMoney = isAdmin() || p.id===me.id;
+      return `<div class="lrow drow prow ${paused?'paused':''}" data-mid="${p.id}"
+                   style="${isTurn&&!paused?'border-color:var(--pending)':''}">
+        <div class="ptop">
+          ${isAdmin()?`<span class="grip" data-grip="${p.id}">☰</span>`:''}
+          <span class="posbig">${i+1}</span>
+          <span class="av2" style="border-color:${p.color}">${faceOf(p,false)}</span>
+          <div class="pinfo">
+            <div class="pnm"><b>${esc(p.name)}</b>
+              ${p.id===me.id?'<span class="you">(คุณ)</span>':''}
+              ${paused?'<span class="ptag pause">💤 พัก</span>':isTurn?'<span class="ptag turn">ตานี้</span>':''}</div>
+            <span class="pmeta">${seeMoney?`฿${fmtS(w.balance)} · เบิกไป ฿${fmtS(w.issuedIn)}`:'ตำแหน่งที่ '+(i+1)}</span>
+          </div>
+          ${seeMoney?`<span class="ppl num" style="color:${v>0?'var(--in)':v<0?'var(--out)':'var(--tm)'}">${v>0?'+':''}${fmtS(v)}</span>`:''}
+        </div>
+        ${isAdmin()?`<div class="pacts">
+          ${paused
+            ? `<button class="pbtn go grow" data-act="resumeMember" data-mid="${p.id}">🙌 ให้กลับมาเล่น</button>`
+            : `<button class="pbtn grow" data-act="pauseMember" data-mid="${p.id}">💤 พักการเล่น</button>`}
+          <button class="pmv" data-act="moveSeat" data-mid="${p.id}" data-d="-1" ${i===0?'disabled':''}>▲</button>
+          <button class="pmv" data-act="moveSeat" data-mid="${p.id}" data-d="1" ${i===list.length-1?'disabled':''}>▼</button>
+          <button class="pbtn ic" data-act="modal" data-m="manage" data-mid="${p.id}" title="จัดการเงิน">⋯</button>
+        </div>`:''}</div>`;
     }).join('')}
   </div>
   ${watchers.length?`<div class="card col"><b class="h2">ผู้ชม (${watchers.length})</b>
-    ${watchers.map(p=>`<div class="lrow"><span class="av2">${esc(initials(p.name))}</span>
-      <b style="font:600 13px/1 var(--f)">${esc(p.name)}</b>
-      ${p.status==='PENDING_JOIN'?'<span class="pill pend">ขอเข้าเล่น</span>':''}
-      <span class="sp"></span>
-      ${isAdmin()?`<button class="btn sm" data-act="approveJoin" data-mid="${p.id}">เชิญเข้าเล่น</button>`:''}</div>`).join('')}
+    ${watchers.map(p=>`<div class="lrow" style="gap:8px">
+      <span class="av2">${esc(initials(p.name))}</span>
+      <div class="pinfo"><div class="pnm"><b>${esc(p.name)}</b></div>
+        ${p.status==='PENDING_JOIN'?'<span class="pmeta" style="color:var(--pending)">✋ ขอเข้าเล่น — รออนุมัติ</span>':'<span class="pmeta">กำลังชมอยู่</span>'}</div>
+      ${isAdmin()?`<button class="pbtn go" data-act="approveJoin" data-mid="${p.id}">เชิญเข้าเล่น</button>`:''}</div>`).join('')}
   </div>`:''}
   <div class="card col"><b class="h2">ตรวจยอด</b>
     <div class="row"><span class="lbl">เงินในกระเป๋าทุกคน</span><span class="sp"></span><span class="num">฿${fmtS(sumWallets(S))}</span></div>
