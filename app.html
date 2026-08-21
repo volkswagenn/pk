@@ -822,6 +822,7 @@ function validate(st, ev){
       if(!isAdmin(me_)) return 'เฉพาะ Admin';
       const m = st.members[ev.mid]; if(!m) return 'ไม่พบผู้เล่น';
       if(m.status==='PLAYING') return 'เล่นอยู่แล้ว';
+      if(m.status==='SITTING_OUT') return 'คนนี้พักการเล่นอยู่ — กด "ให้กลับมาเล่น" แทน';
       const used = Object.values(st.members).filter(x=>x.status==='PLAYING'||x.status==='SITTING_OUT').length;
       if(used >= st.room.maxSeats) return 'ที่นั่งเต็ม เพิ่มที่นั่งก่อน';
       return null;
@@ -840,7 +841,7 @@ function validate(st, ev){
     }
     case 'TOPUP_REQUESTED': {
       const m = st.members[ev.by];
-      if(!m || m.status!=='PLAYING') return 'ต้องเป็นผู้เล่นก่อน';
+      if(!m || (m.status!=='PLAYING'&&m.status!=='SITTING_OUT')) return 'ต้องเป็นผู้เล่นก่อน';
       if(ev.amount<=0) return 'จำนวนเงินไม่ถูกต้อง';
       return null;
     }
@@ -941,6 +942,22 @@ function validate(st, ev){
       const s = seatOf(r,ev.by);
       if(!s || s.state!=='IN') return 'คุณไม่ได้อยู่ในรอบนี้';
       if(s.ante>0) return 'คุณลงกองกลางไปแล้ว';
+      return null;
+    }
+    /* พักการเล่น — Admin สั่งพักคนที่ไม่อยู่ได้ (หรือพักเอง) ระบบจะข้ามตาให้จนกว่าจะกลับมา */
+    case 'MEMBER_PAUSED': {
+      const m = st.members[ev.mid];
+      if(!m) return 'ไม่พบผู้เล่น';
+      if(ev.by!==ev.mid && !isAdmin(me_)) return 'เฉพาะ Admin หรือเจ้าตัวเท่านั้น';
+      if(m.status==='SITTING_OUT') return 'คนนี้พักอยู่แล้ว';
+      if(m.status!=='PLAYING') return 'ต้องเป็นผู้เล่นที่อยู่ในวง';
+      return null;
+    }
+    case 'MEMBER_RESUMED': {
+      const m = st.members[ev.mid];
+      if(!m) return 'ไม่พบผู้เล่น';
+      if(ev.by!==ev.mid && !isAdmin(me_)) return 'เฉพาะ Admin หรือเจ้าตัวเท่านั้น';
+      if(m.status!=='SITTING_OUT') return 'คนนี้ไม่ได้พักอยู่';
       return null;
     }
     case 'ADMIN_TRANSFERRED': {
@@ -1206,6 +1223,42 @@ function apply(st, ev){
       s.state='SITTING_OUT'; s.acted=true;
       feed(st,ev,'💤',nameOf(st,ev.by)+' ไม่ลงกองกลาง — พักรอบนี้','n');
       maybeStartBetting(st,r,ev);
+      break;
+    }
+    case 'MEMBER_PAUSED': {
+      const m = st.members[ev.mid];
+      m.status='SITTING_OUT';
+      const byAdmin = ev.by!==ev.mid;
+      // ถ้าอยู่กลางมือที่เปิดอยู่ ต้องพ้นจากคิวทันที ไม่งั้นตาจะค้างรอคนที่ไม่อยู่
+      const r = st.curRound;
+      if(r && r.status==='OPEN'){
+        const s = seatOf(r, ev.mid);
+        if(s && s.state==='IN'){
+          if(r.phase==='ANTE'){
+            // ยังไม่ลงกองกลาง = พักรอบนี้ · ลงไปแล้ว = ถือว่าหมอบ (เงินอยู่ในกองตามกติกา)
+            s.state = s.ante>0 ? 'FOLDED' : 'SITTING_OUT';
+            s.acted=true;
+            maybeStartBetting(st,r,ev);
+          } else if(notFolded(r).length>1){
+            s.state='FOLDED'; s.acted=true; s.lastKind='FOLD';
+            r.log.push({pos:s.pos,level:s.contributed,kind:'FOLD',by:ev.mid});
+            afterAction(st,r,ev,s.pos);
+          }
+          // เหลือคนสุดท้ายที่ยังไม่หมอบ → ปล่อยไว้ มือนี้จบอยู่แล้ว รอ Admin จ่ายกอง
+        }
+      }
+      mlog(st,ev,ev.mid,'พักการเล่น', byAdmin?'Admin สั่งพัก':'พักเอง');
+      feed(st,ev,'💤',nameOf(st,ev.mid)+' พักการเล่น'+(byAdmin?' (Admin สั่งพัก)':'')+' — ระบบจะข้ามตาให้จนกว่าจะกลับมา','y');
+      break;
+    }
+    case 'MEMBER_RESUMED': {
+      const m = st.members[ev.mid];
+      m.status='PLAYING';
+      // กลับมากลางมือ → นั่งดูมือนี้ก่อน (เหมือนเข้าวงกลางรอบ) เริ่มลงเงินได้มือถัดไป
+      if(st.curRound && st.curRound.status==='OPEN' && !seatOf(st.curRound,ev.mid))
+        st.curRound.seats.push({memberId:ev.mid,pos:st.curRound.seats.length+1,state:'SITTING_OUT',ante:0,contributed:0,paid:0,acted:true,tier:null,lastKind:null});
+      mlog(st,ev,ev.mid,'กลับมาเล่น', ev.by!==ev.mid?'Admin ปลดพักให้':'กลับมาเอง');
+      feed(st,ev,'🙌',nameOf(st,ev.mid)+' กลับมาเล่นแล้ว'+(st.curRound&&st.curRound.status==='OPEN'?' — เริ่มลงเงินได้มือถัดไป':''),'g');
       break;
     }
     case 'ADMIN_TRANSFERRED': {
@@ -1608,10 +1661,12 @@ function debtStats(){
 const meM = () => S.members[me.id] || null;
 const isAdmin = () => { const m=meM(); return !!m && (m.role==='ADMIN'||m.role==='CO_ADMIN'); };
 const isPlayer = () => { const m=meM(); return !!m && m.status==='PLAYING'; };
+const isPaused = () => { const m=meM(); return !!m && m.status==='SITTING_OUT'; };
 const myWallet = () => S.wallets[me.id] || {balance:0,issuedIn:0,returnedOut:0};
 const pendingForAdmin = () => Object.values(S.requests).filter(r=>r.status==='PENDING'&&r.approver==='ADMIN');
 const pendingForMe = () => Object.values(S.requests).filter(r=>r.status==='PENDING'&&r.approver===me.id);
-const playersList = () => Object.values(S.members).filter(m=>m.status==='PLAYING').sort((a,b)=>a.seatNo-b.seatNo);
+/* คนพักยังนับเป็นคนในวง (มีที่นั่ง มีเงิน) แค่ไม่ถูกจัดเข้ารอบใหม่ */
+const playersList = () => Object.values(S.members).filter(m=>m.status==='PLAYING'||m.status==='SITTING_OUT').sort((a,b)=>a.seatNo-b.seatNo);
 /**
  * สรุปหนี้สิน "คงค้างตอนนี้" ของคนหนึ่งคน
  * นับเฉพาะที่ยังค้างอยู่จริง — คืนครบแล้วจะหายไปเลย ไม่เก็บเป็นประวัติ
@@ -2023,7 +2078,7 @@ function vRoom(){
   else if(scr==='payout') return vPayout();
   else if(scr==='settle') return vSettle();
   else if(scr==='wallet') body = vWallet();
-  else body = isAdmin() ? vAdminHome() : (isPlayer() ? vPlayerHome() : vSpectator());
+  else body = isAdmin() ? vAdminHome() : (isPlayer() ? vPlayerHome() : isPaused() ? vPaused() : vSpectator());
   // แถบแท็บ Admin ตรึงติด top bar (เฉพาะหน้าห้อง)
   const sub = (scr==='home' && isAdmin())
     ? `<div class="subbar"><div class="tabs">
@@ -2044,7 +2099,7 @@ function vRoom(){
 function vHeader(){
   const nAdm = isAdmin() ? pendingForAdmin().length : 0;
   const w = myWallet();
-  const canSee = isPlayer() || isAdmin();
+  const canSee = isPlayer() || isAdmin() || isPaused();
   const sync = Store.mode!=='cloud' ? '💻' : Store.rt ? '<span class="live"></span>' : Store.online ? '🔄' : '⚠️';
   return `<div class="hdr">
     ${canSee
@@ -2067,7 +2122,7 @@ function vNav(){
   const nBadge = pendingForMe().length;
   const items = isAdmin()
     ? [['approvals','✅','อนุมัติ'],['players','👥','ผู้เล่น'],['home','🏠','ห้อง'],['history','🕘','ประวัติ'],['settings','⚙️','ตั้งค่า']]
-    : isPlayer()
+    : (isPlayer() || isPaused())
       ? [['approvals','✅','อนุมัติ'],['wallet','💰','กระเป๋า'],['home','🏠','ห้อง'],['history','🕘','ประวัติ'],['settings','⚙️','อื่นๆ']]
       : [['approvals','✅','อนุมัติ'],['home','🏠','ห้อง'],['history','🕘','ประวัติ']];
   return `<div class="nav" style="grid-template-columns:repeat(${items.length},1fr)">
@@ -2306,6 +2361,14 @@ function betPanel(adminMode){
   if(r && r.status==='LOCKED') head = `<div class="ban n">🔒 ปิดรับลงเงินแล้ว — รอ Admin จ่ายเงิน</div>`;
   else if(r && r.status==='SETTLED') head = `<div class="ban n">🏁 รอบที่ ${r.index} จบแล้ว — รอ Admin เปิดรอบใหม่</div>`;
 
+  /* พักการเล่นอยู่ (เช่น Admin พักตัวเอง) — โชว์สถานะวง + ปุ่มกลับมาเล่น */
+  if(isPaused()) return `
+    ${head}
+    <div class="ban y">💤 คุณพักการเล่นอยู่ — ระบบข้ามตาของคุณ ไม่จัดที่นั่งให้ในรอบใหม่</div>
+    ${streetTable(r)}
+    ${pokerTable(r)}
+    <button class="btn big" data-act="resumeMember" data-mid="${me.id}">🙌 กลับมาเล่น (จัดที่นั่งมือถัดไป)</button>`;
+
   /* ───── ช่วงลงเงินกองกลาง (ante) ───── */
   if(r && r.status==='OPEN' && r.phase==='ANTE'){
     const need = r.anteAmount, paid = s?s.ante>0:false;
@@ -2455,7 +2518,7 @@ function vSpectator(){
     <div class="lbl">ผู้เล่นในวง</div>
     <div class="col" style="gap:6px">
       ${playersList().map(p=>`<div class="row"><span class="av2" style="border-color:${p.color}">${faceOf(p,false)}</span>
-        <b style="font:600 13px/1 var(--f)">${esc(p.name)}</b>${p.role==='ADMIN'?'<span class="pill">Admin</span>':''}</div>`).join('')||'<span class="cap">ยังไม่มีผู้เล่น</span>'}
+        <b style="font:600 13px/1 var(--f)">${esc(p.name)}</b>${p.role==='ADMIN'?'<span class="pill">Admin</span>':''}${p.status==='SITTING_OUT'?'<span class="pill" style="color:var(--pending)">💤 พัก</span>':''}</div>`).join('')||'<span class="cap">ยังไม่มีผู้เล่น</span>'}
     </div>
   </div>
   ${pend?`<div class="ban y pulse">⏳ ส่งคำขอแล้ว — รอ Admin อนุมัติ</div>
@@ -2463,6 +2526,21 @@ function vSpectator(){
     :full?`<div class="ban y">🪑 ที่นั่งเต็ม (${S.room.maxSeats}/${S.room.maxSeats}) — รอ Admin เพิ่มที่นั่ง</div>`
     :`<button class="btn big" data-act="askJoin">✋ ขอเข้าเล่น</button>`}
   `;
+}
+
+/* ---------- paused (พักการเล่นอยู่) ---------- */
+function vPaused(){
+  const r = S.curRound;
+  return `
+  <div class="ban y">💤 คุณพักการเล่นอยู่ — ระบบข้ามตาของคุณ และไม่จัดที่นั่งให้ในรอบใหม่จนกว่าจะกลับมา</div>
+  ${r?ringRow(r):''}
+  ${potCard(r)}
+  <div class="card col">
+    <div class="lbl">ระหว่างพัก</div>
+    <div class="cap">เงินในกระเป๋าของคุณยังอยู่ครบ ฿${fmtBalS(myWallet().balance)} · โอนเงิน/คืนหนี้ได้ตามปกติ · แค่ไม่ถูกเรียกลงเงิน</div>
+  </div>
+  <button class="btn big" data-act="resumeMember" data-mid="${me.id}">🙌 กลับมาเล่น</button>
+  <div class="cap" style="text-align:center">กดแล้วคุณจะถูกจัดที่นั่งในมือถัดไปทันที</div>`;
 }
 
 /* ---------- admin home ---------- */
@@ -2589,7 +2667,7 @@ function vAdminControl(){
     ${list.map(p=>{ const w=S.wallets[p.id]||{balance:0}; const s=r?seatOf(r,p.id):null;
       return `<div class="lrow"><span class="av2" style="border-color:${p.color}">${faceOf(p,false)}</span>
         <div class="col" style="gap:2px"><b style="font:600 13px/1 var(--f)">${esc(p.name)}</b>
-          <span class="cap">${s? (s.state==='FOLDED'?'หมอบ':s.state==='SITTING_OUT'?'พัก':paidTotal(s)>0?'ลงไปแล้ว ฿'+fmtS(paidTotal(s))+(needsAct(r,s)?' (ยังต้องตาม)':''):needsAct(r,s)?'รอลง':'ผ่าน') : '—'}</span></div>
+          <span class="cap">${p.status==='SITTING_OUT'?'💤 พักการเล่น — ข้ามตาให้':s? (s.state==='FOLDED'?'หมอบ':s.state==='SITTING_OUT'?'พัก':paidTotal(s)>0?'ลงไปแล้ว ฿'+fmtS(paidTotal(s))+(needsAct(r,s)?' (ยังต้องตาม)':''):needsAct(r,s)?'รอลง':'ผ่าน') : '—'}</span></div>
         <span class="sp"></span><span class="money-s num">฿${fmtS(w.balance)}</span>
         <button class="btn sec sm" data-act="modal" data-m="manage" data-mid="${p.id}">⋯</button></div>`;
     }).join('')}
@@ -2929,11 +3007,14 @@ function vPlayers(){
         ${isAdmin()?`<span class="grip" data-grip="${p.id}">☰</span>`:''}
         <span class="posbig">${i+1}</span>
         <span class="av2" style="border-color:${p.color}">${faceOf(p,false)}</span>
-        <div class="col" style="gap:2px"><b style="font:600 13px/1 var(--f)">${esc(p.name)}${p.id===me.id?' (คุณ)':''}${isTurn?' <span class="pill pend">ตานี้</span>':''}</b>
+        <div class="col" style="gap:2px"><b style="font:600 13px/1 var(--f)">${esc(p.name)}${p.id===me.id?' (คุณ)':''}${p.status==='SITTING_OUT'?' <span class="pill" style="color:var(--pending)">💤 พัก</span>':isTurn?' <span class="pill pend">ตานี้</span>':''}</b>
           <span class="cap">${isAdmin()||p.id===me.id?`฿${fmtS(w.balance)} · เบิกไป ฿${fmtS(w.issuedIn)}`:'ตำแหน่ง '+(i+1)}</span></div>
         <span class="sp"></span>
         ${isAdmin()||p.id===me.id?`<span class="money-s num" style="color:${v>0?'var(--in)':v<0?'var(--out)':'var(--tm)'}">${v>0?'+':''}${fmtS(v)}</span>`:''}
-        ${isAdmin()?`<div class="col" style="gap:2px">
+        ${isAdmin()?`${p.status==='SITTING_OUT'
+            ?`<button class="btn sm" data-act="resumeMember" data-mid="${p.id}">🙌 ปลดพัก</button>`
+            :`<button class="btn sec sm" data-act="pauseMember" data-mid="${p.id}" title="พักการเล่น — ข้ามตาให้ตอนไม่อยู่">💤</button>`}
+        <div class="col" style="gap:2px">
           <button class="mv" data-act="moveSeat" data-mid="${p.id}" data-d="-1" ${i===0?'disabled':''}>▲</button>
           <button class="mv" data-act="moveSeat" data-mid="${p.id}" data-d="1" ${i===list.length-1?'disabled':''}>▼</button></div>
         <button class="btn sec sm" data-act="modal" data-m="manage" data-mid="${p.id}">⋯</button>`:''}</div>`;
@@ -2981,7 +3062,7 @@ function vSettings(){
   const adminXfer = adm && meM().role==='ADMIN' ? `
   <div class="card col"><b class="h2">👑 โอนสิทธิ์ Admin</b>
     <div class="cap">เลือกผู้เล่นที่จะรับหน้าที่นายธนาคารแทนคุณ — มีผลทันที ไม่ต้องให้อีกฝ่ายยืนยัน ส่วนคุณจะกลายเป็นผู้เล่นธรรมดา</div>
-    ${playersList().filter(p=>p.id!==me.id).map(p=>`
+    ${playersList().filter(p=>p.id!==me.id&&p.status==='PLAYING').map(p=>`
       <div class="lrow"><span class="av2" style="border-color:${p.color}">${faceOf(p,false)}</span>
         <b style="font:600 13px/1 var(--f)">${esc(p.name)}</b><span class="sp"></span>
         <button class="btn sec sm" data-act="makeAdmin" data-mid="${p.id}">👑 โอนให้</button></div>`).join('')
@@ -3042,7 +3123,7 @@ function vSettings(){
 }
 
 function vSettle(){
-  const list = Object.values(S.members).filter(m=>m.status==='PLAYING'||(S.wallets[m.id]&&S.wallets[m.id].balance>0));
+  const list = Object.values(S.members).filter(m=>m.status==='PLAYING'||m.status==='SITTING_OUT'||(S.wallets[m.id]&&S.wallets[m.id].balance>0));
   const tot = {issued:0,bal:0,pl:0};
   const rows = list.map(p=>{ const w=S.wallets[p.id]||{balance:0,issuedIn:0,returnedOut:0};
     const iss=w.issuedIn-w.returnedOut, pl=w.balance-iss;
@@ -3073,7 +3154,7 @@ function vSettle(){
   <div class="foot"><button class="btn big dgr" data-act="closeRoom" ${canClose?'':'disabled'}>ปิดห้องถาวร</button></div>`;
 }
 function settleSuggest(){
-  const arr = Object.values(S.members).filter(m=>m.status==='PLAYING').map(p=>{
+  const arr = Object.values(S.members).filter(m=>m.status==='PLAYING'||m.status==='SITTING_OUT').map(p=>{
     const w=S.wallets[p.id]||{balance:0,issuedIn:0,returnedOut:0};
     return {name:p.name, v:w.balance-(w.issuedIn-w.returnedOut)}; }).filter(x=>x.v!==0);
   if(!arr.length) return '';
@@ -3410,6 +3491,10 @@ function mManage(mid){
     <div class="g2"><button class="btn ghost" data-act="closeModal">ยกเลิก</button>
       <button class="btn ${mode==='ret'?'dgr':''}" data-act="doManage" data-mid="${mid}" ${amt<=0?'disabled':''}>
         ${mode==='add'?'ยืนยันเติมเงิน':'ยืนยันคืน BANK'}</button></div>
+    ${m.status==='SITTING_OUT'
+      ? `<div class="ban y">💤 ${esc(m.name)} พักการเล่นอยู่ — ระบบข้ามตาให้ และไม่จัดที่นั่งในรอบใหม่</div>
+         <button class="btn" data-act="resumeMember" data-mid="${mid}">🙌 ให้กลับมาเล่น (จัดที่นั่งมือถัดไป)</button>`
+      : `<button class="btn sec" data-act="pauseMember" data-mid="${mid}">💤 พักการเล่น — ${mid===me.id?'พักตัวเอง':'คนนี้ไม่อยู่ ให้ข้ามตา'}</button>`}
     ${meM()&&meM().role==='ADMIN'&&m.status==='PLAYING'&&mid!==me.id
       ? `<div class="g2">
            <button class="btn sec" data-act="makeAdmin" data-mid="${mid}">👑 โอนสิทธิ์ Admin</button>
@@ -3709,6 +3794,23 @@ const A = {
   ante(){ cmd({t:'ANTE'}); },
   anteSitout(){ UI.modal={k:'confirm',title:'ไม่ลงกองกลาง?',text:'คุณจะพักรอบนี้ และไม่มีสิทธิ์รับกอง',ok:'พักรอบนี้',danger:true,
     fn:()=>cmd({t:'ANTE_SITOUT'})}; render(); },
+  /* Admin กดพักการเล่นของคนที่ไม่อยู่ (หรือพักตัวเอง) — ระบบข้ามตาให้จนกว่าจะปลดพัก */
+  pauseMember(d){
+    const n = nameOf(S,d.mid);
+    const r = S.curRound;
+    const s = (r && r.status==='OPEN') ? seatOf(r,d.mid) : null;
+    const inHand = s && s.state==='IN' && paidTotal(s)>0;
+    UI.modal={k:'confirm',title:'💤 พักการเล่นของ '+n+'?',
+      text:'ระบบจะข้ามตาของ '+n+' และไม่จัดที่นั่งให้ในรอบใหม่ จนกว่าจะกด "ให้กลับมาเล่น"'
+        +(inHand?' · มือนี้ '+n+' ลงเงินไปแล้ว ฿'+fmtS(paidTotal(s))+' จะถือว่าหมอบ (เงินอยู่ในกองตามกติกา)':''),
+      ok:'พักการเล่น',danger:true,
+      fn:()=>cmd({t:'MEMBER_PAUSED',mid:d.mid})};
+    render(); },
+  async resumeMember(d){
+    if(await cmd({t:'MEMBER_RESUMED',mid:d.mid})){
+      if(UI.modal&&UI.modal.k==='manage'){ UI.modal=null; }
+      toast('🙌 '+nameOf(S,d.mid)+' กลับมาเล่นแล้ว — ถูกจัดที่นั่งในมือถัดไป','g'); render();
+    } },
   makeAdmin(d){
     const n = nameOf(S,d.mid);
     UI.modal={k:'confirm',title:'โอนสิทธิ์ Admin ให้ '+n+'?',
